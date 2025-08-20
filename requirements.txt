@@ -1,0 +1,7 @@
+Flask==3.0.3
+line-bot-sdk==3.17.1
+python-dotenv==1.0.1
+supabase==2.17.0
+gunicorn==23.0.0
+pytz==2024.1
+# Personal Privacy Bot v2.0 - PRODUCTION READY
