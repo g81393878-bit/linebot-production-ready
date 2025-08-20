@@ -929,7 +929,7 @@ def handle_message(event):
             return
 
         # Handle user states (flows)
-        if state:
+        if state and "step" in state:
             # Add event flow
             if state["step"] == "add_event_title":
                 state["title"] = text
@@ -1225,7 +1225,6 @@ def handle_message(event):
                     )])
             except Exception as e:
                 print(f"[ERROR] Confirm delete error: {e}")
-                import traceback
                 traceback.print_exc()
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ", quick_reply=create_main_menu())])
             return
