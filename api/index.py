@@ -1052,7 +1052,8 @@ def handle_message(event):
                 try:
                     search_query = text.strip()
                     
-                    contacts_response = supabase_client.table('contacts').select('*').ilike('name', f'%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    # Search both name and phone_number fields
+                    contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
                     
                     contacts = contacts_response.data if contacts_response.data else []
                     user_states.pop(user_id, None)
