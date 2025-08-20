@@ -146,9 +146,22 @@ def send_notification(user_id, message):
         print(f"[NOTIFICATION] ❌ Failed to send: {e}")
         return False
 
+def keep_alive_ping():
+    """Keep service alive by self-pinging every 10 minutes"""
+    try:
+        import requests
+        service_url = "https://linebot-production-ready.onrender.com"
+        response = requests.get(service_url, timeout=10)
+        print(f"[KEEP-ALIVE] ✅ Pinged service: {response.status_code}")
+    except Exception as e:
+        print(f"[KEEP-ALIVE] ❌ Ping failed: {e}")
+
 def check_and_send_notifications():
     """Check for pending notifications and send them"""
     try:
+        # Keep service alive
+        keep_alive_ping()
+        
         thai_tz = pytz.timezone('Asia/Bangkok')
         now = datetime.now(thai_tz)
         
@@ -216,9 +229,9 @@ if SCHEDULER_AVAILABLE:
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         func=check_and_send_notifications,
-        trigger=IntervalTrigger(minutes=5),  # Check every 5 minutes
+        trigger=IntervalTrigger(minutes=10),  # Check every 10 minutes (includes keep-alive ping)
         id='notification_checker',
-        name='Check and send notifications',
+        name='Check and send notifications + keep alive',
         replace_existing=True
     )
 
@@ -232,7 +245,7 @@ def start_notification_system():
         create_notifications_table()
         if scheduler and not scheduler.running:
             scheduler.start()
-            print("[NOTIFICATION] 🔔 Scheduler started - checking every 5 minutes")
+            print("[NOTIFICATION] 🔔 Scheduler started - notifications + keep-alive every 10 minutes")
             atexit.register(lambda: scheduler.shutdown())
     except Exception as e:
         print(f"[NOTIFICATION] ❌ Failed to start scheduler: {e}")
