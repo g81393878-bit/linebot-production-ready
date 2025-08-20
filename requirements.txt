@@ -20,6 +20,7 @@ python-dotenv==1.0.1
 
 # Date & Time Processing
 pytz==2024.1
+APScheduler==3.10.4
 
 # Text & Data Processing
 charset-normalizer==3.3.2
