@@ -792,15 +792,18 @@ def handle_message(event):
                             # Add pagination info and next page button
                             pagination_text = f"📋 แสดง 12 จาก {len(events)} รายการ\n\n💡 ค้นหา: พิมพ์ชื่อกิจกรรม หรือ ค้นหาตามวันที่"
                             
-                            # Create "Next Page" quick reply if more items exist
+                            # Create "Next Page" quick reply for the flex message
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
                                 QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
                                 QuickReplyItem(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
                             ])
                             
+                            # Put quick reply on the flex message (last message)
+                            flex_message.quick_reply = quick_reply
+                            
                             safe_reply(reply_token, [
-                                TextMessage(text=pagination_text, quick_reply=quick_reply),
+                                TextMessage(text=pagination_text),
                                 flex_message
                             ])
                         else:
@@ -894,8 +897,11 @@ def handle_message(event):
                                 QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         
+                        # Put quick reply on the flex message (last message)
+                        flex_message.quick_reply = quick_reply
+                        
                         safe_reply(reply_token, [
-                            TextMessage(text=pagination_text, quick_reply=quick_reply),
+                            TextMessage(text=pagination_text),
                             flex_message
                         ])
                     else:
