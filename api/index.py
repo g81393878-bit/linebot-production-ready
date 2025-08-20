@@ -637,8 +637,8 @@ def handle_message(event):
                         title_text = "📋 **กิจกรรมของคุณ**" if user_id not in admin_ids else "📋 **กิจกรรมทั้งหมด (Admin)**"
                         extra_info = f"\n\n💡 แสดง {len(events_to_show)} จาก {len(events)} รายการ" if len(events) > 12 else ""
                         if len(events) > 12:
-                            # Add pagination info and search suggestion
-                            pagination_text = f"{title_text} ({len(events)} รายการ){extra_info}\n\n🔍 **หากต้องการดูเฉพาะบางรายการ:**\n• ใช้ \"ค้นหากิจกรรม\" ค้นหาด้วยชื่อ\n• ใช้ \"ค้นหาตามวันที่\" ดูตามวัน"
+                            # Add pagination info and search suggestion  
+                            pagination_text = f"📋 แสดง 12 จาก {len(events)} รายการ\n\n💡 ค้นหา: พิมพ์ชื่อกิจกรรม หรือ ค้นหาตามวันที่"
                             safe_reply(reply_token, [
                                 TextMessage(text=pagination_text),
                                 flex_message
