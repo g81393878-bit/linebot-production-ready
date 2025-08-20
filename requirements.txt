@@ -1,0 +1,40 @@
+# ========================================
+# LINE Bot Production Dependencies
+# Complete & Production Ready v4.0
+# ========================================
+
+# Core Framework
+Flask==3.0.3
+gunicorn==23.0.0
+
+# LINE Bot SDK (Latest Stable)
+line-bot-sdk==3.17.1
+
+# Database & API Client
+supabase==2.17.0
+requests==2.32.3
+urllib3==2.2.2
+
+# Environment & Configuration
+python-dotenv==1.0.1
+
+# Date & Time Processing
+pytz==2024.1
+
+# Text & Data Processing
+charset-normalizer==3.3.2
+certifi==2024.7.4
+
+# JSON & Data Handling
+typing-extensions==4.12.2
+
+# HTTP & Security
+idna==3.7
+
+# Production Dependencies
+Werkzeug==3.0.4
+
+# ========================================
+# Total: 13 Essential Dependencies
+# Tested & Verified for Render Deployment
+# ========================================
