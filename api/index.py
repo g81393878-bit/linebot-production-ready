@@ -1204,11 +1204,25 @@ def handle_message(event):
                 delete_result = supabase_client.table('events').delete().eq('id', event_id).execute()
                 print(f"[DELETE] Delete result: {delete_result}")
                 
-                admin_note = " (Admin)" if is_admin and not is_owner else ""
-                safe_reply(reply_token, [TextMessage(
-                    text=f"🗑️ **ลบกิจกรรมเรียบร้อย!**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n✅ ลบออกจากระบบแล้ว",
-                    quick_reply=create_main_menu()
-                )])
+                # Verify deletion was successful
+                verify_result = supabase_client.table('events').select('id').eq('id', event_id).execute()
+                print(f"[DELETE] Verification check: {verify_result}")
+                
+                if verify_result.data:
+                    # Still exists - deletion failed
+                    print(f"[DELETE] ❌ Deletion failed - record still exists")
+                    safe_reply(reply_token, [TextMessage(
+                        text=f"❌ **ไม่สามารถลบได้**\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ เกิดข้อผิดพลาดในฐานข้อมูล",
+                        quick_reply=create_main_menu()
+                    )])
+                else:
+                    # Successfully deleted
+                    print(f"[DELETE] ✅ Deletion successful - record removed")
+                    admin_note = " (Admin)" if is_admin and not is_owner else ""
+                    safe_reply(reply_token, [TextMessage(
+                        text=f"🗑️ **ลบกิจกรรมเรียบร้อย!**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n✅ ลบออกจากระบบแล้ว",
+                        quick_reply=create_main_menu()
+                    )])
             except Exception as e:
                 print(f"[ERROR] Confirm delete error: {e}")
                 import traceback
@@ -1270,14 +1284,30 @@ def handle_postback(event):
                 return
             
             # Delete event
-            supabase_client.table('events').delete().eq('id', event_id).execute()
+            delete_result = supabase_client.table('events').delete().eq('id', event_id).execute()
+            print(f"[COMPLETE] Delete result: {delete_result}")
+            
+            # Verify deletion was successful
+            verify_result = supabase_client.table('events').select('id').eq('id', event_id).execute()
+            print(f"[COMPLETE] Verification check: {verify_result}")
             
             event_title = event_check.data[0].get('event_title', 'กิจกรรม')
             admin_note = " (Admin)" if is_admin and not is_owner else ""
-            safe_reply(reply_token, [TextMessage(
-                text=f"✅ **เสร็จแล้ว!** 🎉{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n✨ ลบออกจากรายการแล้ว",
-                quick_reply=create_main_menu()
-            )])
+            
+            if verify_result.data:
+                # Still exists - deletion failed
+                print(f"[COMPLETE] ❌ Deletion failed - record still exists")
+                safe_reply(reply_token, [TextMessage(
+                    text=f"❌ **ไม่สามารถทำเสร็จได้**\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ เกิดข้อผิดพลาดในฐานข้อมูล",
+                    quick_reply=create_main_menu()
+                )])
+            else:
+                # Successfully deleted
+                print(f"[COMPLETE] ✅ Deletion successful - record removed")
+                safe_reply(reply_token, [TextMessage(
+                    text=f"✅ **เสร็จแล้ว!** 🎉{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n✨ ลบออกจากรายการแล้ว",
+                    quick_reply=create_main_menu()
+                )])
             
         elif data.startswith('edit_') or data.startswith('admin_edit_'):
             if data.startswith('admin_edit_'):
