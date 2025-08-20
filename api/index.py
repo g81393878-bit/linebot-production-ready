@@ -1166,27 +1166,41 @@ def handle_message(event):
         if text.startswith('ยืนยันลบ '):
             try:
                 event_id = text.replace('ยืนยันลบ ', '').strip()
-                event_check = supabase_client.table('events').select('created_by').eq('id', event_id).execute()
+                print(f"[DELETE] Confirming delete: event_id={event_id}, user_id={user_id}")
+                
+                # Get event details including title
+                event_check = supabase_client.table('events').select('*').eq('id', event_id).execute()
                 if not event_check.data:
+                    print(f"[DELETE] Event not found: {event_id}")
                     safe_reply(reply_token, [TextMessage(text="❌ ไม่พบกิจกรรมที่ต้องการ", quick_reply=create_main_menu())])
                     return
                 
-                is_owner = event_check.data[0]['created_by'] == user_id
+                event_data = event_check.data[0]
+                is_owner = event_data['created_by'] == user_id
                 is_admin = user_id in admin_ids
+                event_title = event_data.get('event_title', 'กิจกรรม')
+                
+                print(f"[DELETE] Ownership: is_owner={is_owner}, is_admin={is_admin}, title={event_title}")
                 
                 if not (is_owner or is_admin):
+                    print(f"[DELETE] Access denied for user {user_id}")
                     safe_reply(reply_token, [TextMessage(text="❌ คุณสามารถจัดการได้เฉพาะกิจกรรมของคุณเอง", quick_reply=create_main_menu())])
                     return
                 
-                supabase_client.table('events').delete().eq('id', event_id).execute()
-                admin_note = " (Admin Delete)" if is_admin and not is_owner else ""
+                # Delete the event
+                delete_result = supabase_client.table('events').delete().eq('id', event_id).execute()
+                print(f"[DELETE] Delete result: {delete_result}")
+                
+                admin_note = " (Admin)" if is_admin and not is_owner else ""
                 safe_reply(reply_token, [TextMessage(
-                    text=f"🗑️ **ลบกิจกรรมเรียบร้อย!**{admin_note}\n\n🆔 ID: {event_id}\n✅ ลบออกจากระบบแล้ว",
+                    text=f"🗑️ **ลบกิจกรรมเรียบร้อย!**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n✅ ลบออกจากระบบแล้ว",
                     quick_reply=create_main_menu()
                 )])
             except Exception as e:
                 print(f"[ERROR] Confirm delete error: {e}")
-                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
+                import traceback
+                traceback.print_exc()
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ", quick_reply=create_main_menu())])
             return
 
         # Default response
