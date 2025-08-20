@@ -619,6 +619,11 @@ def handle_message(event):
 
         if text == "ดูกิจกรรมทั้งหมด":
             try:
+                # Reset pagination to first page
+                if user_id not in user_states:
+                    user_states[user_id] = {}
+                user_states[user_id]["page"] = 1
+                
                 # Check if user is admin
                 if user_id in admin_ids:
                     # Admin can see all events
@@ -637,10 +642,19 @@ def handle_message(event):
                         title_text = "📋 **กิจกรรมของคุณ**" if user_id not in admin_ids else "📋 **กิจกรรมทั้งหมด (Admin)**"
                         extra_info = f"\n\n💡 แสดง {len(events_to_show)} จาก {len(events)} รายการ" if len(events) > 12 else ""
                         if len(events) > 12:
-                            # Add pagination info and search suggestion  
+                            # Add pagination info and next page button
                             pagination_text = f"📋 แสดง 12 จาก {len(events)} รายการ\n\n💡 ค้นหา: พิมพ์ชื่อกิจกรรม หรือ ค้นหาตามวันที่"
+                            
+                            # Create "Next Page" quick reply if more items exist
+                            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+                            quick_reply = QuickReply(items=[
+                                QuickReplyButton(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
+                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
+                                QuickReplyButton(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
+                            ])
+                            
                             safe_reply(reply_token, [
-                                TextMessage(text=pagination_text),
+                                TextMessage(text=pagination_text, quick_reply=quick_reply),
                                 flex_message
                             ])
                         else:
@@ -666,6 +680,73 @@ def handle_message(event):
                     )])
             except Exception as e:
                 print(f"[ERROR] View all events error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
+            return
+
+        # Handle pagination for "หน้าถัดไป"
+        if text == "หน้าถัดไป":
+            try:
+                page = user_states.get(user_id, {}).get("page", 1)  # Get current page or default to 1
+                page += 1  # Go to next page
+                
+                # Update user state with new page
+                if user_id not in user_states:
+                    user_states[user_id] = {}
+                user_states[user_id]["page"] = page
+                
+                # Calculate offset for pagination (12 items per page)
+                offset = (page - 1) * 12
+                
+                # Check if user is admin
+                if user_id in admin_ids:
+                    # Admin can see all events
+                    events_response = supabase_client.table('events').select('*').order('event_date', desc=False).execute()
+                else:
+                    # Regular users see only their events
+                    events_response = supabase_client.table('events').select('*').eq('created_by', user_id).order('event_date', desc=False).execute()
+                
+                events = events_response.data
+                total_events = len(events)
+                
+                # Get events for current page
+                events_to_show = events[offset:offset + 12]
+                
+                if events_to_show:
+                    flex_message = create_beautiful_flex_message_working(events_to_show, user_id)
+                    if flex_message:
+                        has_next_page = offset + 12 < total_events
+                        start_num = offset + 1
+                        end_num = min(offset + len(events_to_show), total_events)
+                        
+                        pagination_text = f"📋 หน้า {page}: แสดง {start_num}-{end_num} จาก {total_events} รายการ"
+                        
+                        if has_next_page:
+                            # Create quick reply with next page option
+                            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+                            quick_reply = QuickReply(items=[
+                                QuickReplyButton(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
+                                QuickReplyButton(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
+                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                            ])
+                        else:
+                            # Last page - only show back to first page
+                            quick_reply = QuickReply(items=[
+                                QuickReplyButton(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
+                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                            ])
+                        
+                        safe_reply(reply_token, [
+                            TextMessage(text=pagination_text, quick_reply=quick_reply),
+                            flex_message
+                        ])
+                    else:
+                        safe_reply(reply_token, [TextMessage(text="❌ ไม่สามารถแสดง Flex Messages ได้", quick_reply=create_main_menu())])
+                else:
+                    # No more items on this page
+                    safe_reply(reply_token, [TextMessage(text="📋 ไม่มีกิจกรรมเพิ่มเติมแล้ว", quick_reply=create_main_menu())])
+                    
+            except Exception as e:
+                print(f"[ERROR] Pagination error: {e}")
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
             return
 
@@ -874,8 +955,17 @@ def handle_message(event):
                     return
                 
                 admin_note = " (Admin Delete)" if is_admin and not is_owner else ""
+                
+                # Create Quick Reply for delete confirmation
+                from linebot.models import QuickReply, QuickReplyButton, MessageAction
+                quick_reply = QuickReply(items=[
+                    QuickReplyButton(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
+                    QuickReplyButton(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
+                ])
+                
                 safe_reply(reply_token, [TextMessage(
-                    text=f"🗑️ **ยืนยันการลบ**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ การลบจะไม่สามารถกู้คืนได้\n\nพิมพ์ 'ยืนยันลบ {event_id}' เพื่อลบจริง"
+                    text=f"🗑️ **ยืนยันการลบ**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ การลบจะไม่สามารถกู้คืนได้",
+                    quick_reply=quick_reply
                 )])
             except Exception as e:
                 print(f"[ERROR] Delete command error: {e}")
@@ -1045,8 +1135,17 @@ def handle_postback(event):
                 return
             
             admin_note = " (Admin Delete)" if is_admin and not is_owner else ""
+            
+            # Create Quick Reply for delete confirmation  
+            from linebot.models import QuickReply, QuickReplyButton, MessageAction
+            quick_reply = QuickReply(items=[
+                QuickReplyButton(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
+                QuickReplyButton(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
+            ])
+            
             safe_reply(reply_token, [TextMessage(
-                text=f"🗑️ **ยืนยันการลบ**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ การลบจะไม่สามารถกู้คืนได้\n\nพิมพ์ 'ยืนยันลบ {event_id}' เพื่อลบจริง"
+                text=f"🗑️ **ยืนยันการลบ**{admin_note}\n\n📝 {event_title}\n🆔 ID: {event_id}\n\n⚠️ การลบจะไม่สามารถกู้คืนได้",
+                quick_reply=quick_reply
             )])
             
     except Exception as e:
