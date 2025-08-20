@@ -20,6 +20,9 @@ from dotenv import load_dotenv
 from supabase import create_client
 import time
 import traceback
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+import atexit
 
 # Load environment variables
 load_dotenv()
@@ -89,6 +92,137 @@ def can_process_postback(user_id):
     
     last_postback_time[user_id] = now
     return True
+
+# ===== NOTIFICATION SYSTEM =====
+
+def create_notifications_table():
+    """Create notifications table if not exists"""
+    try:
+        # Check if table exists by trying to select from it
+        supabase_client.table('notifications').select('*').limit(1).execute()
+        print("[DB] notifications table already exists")
+    except:
+        print("[DB] Creating notifications table...")
+        # Table doesn't exist, it will be created manually through Supabase dashboard
+        # Schema:
+        # CREATE TABLE notifications (
+        #     id SERIAL PRIMARY KEY,
+        #     event_id INTEGER REFERENCES events(id),
+        #     user_id TEXT NOT NULL,
+        #     notification_time TIMESTAMP WITH TIME ZONE,
+        #     message TEXT,
+        #     sent BOOLEAN DEFAULT FALSE,
+        #     created_at TIMESTAMP DEFAULT NOW()
+        # );
+        pass
+
+def send_notification(user_id, message):
+    """Send notification message to user"""
+    try:
+        if not line_bot_api:
+            print(f"[NOTIFICATION] Cannot send - LINE Bot API not available")
+            return False
+            
+        # Send push message (no reply_token needed)
+        from linebot.v3.messaging import PushMessageRequest
+        
+        push_request = PushMessageRequest(
+            to=user_id,
+            messages=[TextMessage(text=message)]
+        )
+        
+        line_bot_api.push_message(push_request)
+        print(f"[NOTIFICATION] ✅ Sent to User{user_id[-4:]}")
+        return True
+        
+    except Exception as e:
+        print(f"[NOTIFICATION] ❌ Failed to send: {e}")
+        return False
+
+def check_and_send_notifications():
+    """Check for pending notifications and send them"""
+    try:
+        thai_tz = pytz.timezone('Asia/Bangkok')
+        now = datetime.now(thai_tz)
+        
+        # Get events that need notification (within next 1 hour)
+        one_hour_later = now + timedelta(hours=1)
+        
+        # Get all events happening in the next hour
+        events_response = supabase_client.table('events').select('*').gte('event_date', now.date()).execute()
+        
+        for event in events_response.data:
+            event_date_str = event.get('event_date')
+            if not event_date_str:
+                continue
+                
+            # Parse event date 
+            try:
+                event_date = datetime.strptime(event_date_str, '%Y-%m-%d').replace(tzinfo=thai_tz)
+                # Set time to 9:00 AM for notification
+                event_datetime = event_date.replace(hour=9, minute=0, second=0)
+                
+                # Check if we should send notification (1 hour before 9 AM = 8 AM)
+                notification_time = event_datetime - timedelta(hours=1)
+                
+                # Send notification if current time is within 10 minutes of notification time
+                time_diff = abs((now - notification_time).total_seconds())
+                
+                if time_diff <= 600:  # Within 10 minutes
+                    # Check if notification already sent
+                    check_sent = supabase_client.table('notifications').select('*').eq('event_id', event['id']).eq('sent', True).execute()
+                    
+                    if not check_sent.data:  # Not sent yet
+                        event_title = event.get('event_title', 'กิจกรรม')
+                        user_id = event.get('created_by')
+                        
+                        if user_id:
+                            # Format Thai date
+                            formatted_date = format_thai_date(event_date_str)
+                            
+                            message = f"🔔 **แจ้งเตือนกิจกรรม**\n\n📝 {event_title}\n📅 {formatted_date}\n⏰ อีก 1 ชั่วโมง (9:00 น.)\n\n💡 อย่าลืมเตรียมตัวนะ!"
+                            
+                            if send_notification(user_id, message):
+                                # Mark as sent
+                                try:
+                                    supabase_client.table('notifications').insert({
+                                        'event_id': event['id'],
+                                        'user_id': user_id,
+                                        'notification_time': now.isoformat(),
+                                        'message': message,
+                                        'sent': True
+                                    }).execute()
+                                    print(f"[NOTIFICATION] ✅ Logged notification for event {event['id']}")
+                                except:
+                                    print(f"[NOTIFICATION] ⚠️ Failed to log notification")
+                
+            except Exception as e:
+                print(f"[NOTIFICATION] Error processing event {event.get('id')}: {e}")
+                continue
+                
+    except Exception as e:
+        print(f"[NOTIFICATION] ❌ Check failed: {e}")
+
+# Initialize notification scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=check_and_send_notifications,
+    trigger=IntervalTrigger(minutes=5),  # Check every 5 minutes
+    id='notification_checker',
+    name='Check and send notifications',
+    replace_existing=True
+)
+
+def start_notification_system():
+    """Start the notification scheduler"""
+    try:
+        create_notifications_table()
+        if not scheduler.running:
+            scheduler.start()
+            print("[NOTIFICATION] 🔔 Scheduler started - checking every 5 minutes")
+        atexit.register(lambda: scheduler.shutdown())
+    except Exception as e:
+        print(f"[NOTIFICATION] ❌ Failed to start scheduler: {e}")
 
 app = Flask(__name__)
 
@@ -646,11 +780,10 @@ def handle_message(event):
                             pagination_text = f"📋 แสดง 12 จาก {len(events)} รายการ\n\n💡 ค้นหา: พิมพ์ชื่อกิจกรรม หรือ ค้นหาตามวันที่"
                             
                             # Create "Next Page" quick reply if more items exist
-                            from linebot.models import QuickReply, QuickReplyButton, MessageAction
                             quick_reply = QuickReply(items=[
-                                QuickReplyButton(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
-                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
-                                QuickReplyButton(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
+                                QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
+                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
+                                QuickReplyItem(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
                             ])
                             
                             safe_reply(reply_token, [
@@ -681,6 +814,20 @@ def handle_message(event):
             except Exception as e:
                 print(f"[ERROR] View all events error: {e}")
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
+            return
+
+        # Test notification system (Admin only)
+        if text == "ทดสอบแจ้งเตือน" and user_id in admin_ids:
+            try:
+                message = f"🔔 **ทดสอบระบบแจ้งเตือน**\n\n⏰ {get_current_thai_time().strftime('%H:%M น.')}\n📅 {format_thai_date(get_current_thai_time().date().isoformat())}\n\n✅ ระบบแจ้งเตือนทำงานปกติ!"
+                
+                if send_notification(user_id, message):
+                    safe_reply(reply_token, [TextMessage(text="✅ ส่งการทดสอบแจ้งเตือนแล้ว", quick_reply=create_main_menu())])
+                else:
+                    safe_reply(reply_token, [TextMessage(text="❌ ไม่สามารถส่งแจ้งเตือนได้", quick_reply=create_main_menu())])
+            except Exception as e:
+                print(f"[TEST NOTIFICATION] Error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการทดสอบ", quick_reply=create_main_menu())])
             return
 
         # Handle pagination for "หน้าถัดไป"
@@ -722,17 +869,16 @@ def handle_message(event):
                         
                         if has_next_page:
                             # Create quick reply with next page option
-                            from linebot.models import QuickReply, QuickReplyButton, MessageAction
                             quick_reply = QuickReply(items=[
-                                QuickReplyButton(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
-                                QuickReplyButton(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
+                                QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
+                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         else:
                             # Last page - only show back to first page
                             quick_reply = QuickReply(items=[
-                                QuickReplyButton(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyButton(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
+                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         
                         safe_reply(reply_token, [
@@ -957,10 +1103,9 @@ def handle_message(event):
                 admin_note = " (Admin Delete)" if is_admin and not is_owner else ""
                 
                 # Create Quick Reply for delete confirmation
-                from linebot.models import QuickReply, QuickReplyButton, MessageAction
                 quick_reply = QuickReply(items=[
-                    QuickReplyButton(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
-                    QuickReplyButton(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
+                    QuickReplyItem(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
+                    QuickReplyItem(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
                 ])
                 
                 safe_reply(reply_token, [TextMessage(
@@ -1137,10 +1282,9 @@ def handle_postback(event):
             admin_note = " (Admin Delete)" if is_admin and not is_owner else ""
             
             # Create Quick Reply for delete confirmation  
-            from linebot.models import QuickReply, QuickReplyButton, MessageAction
             quick_reply = QuickReply(items=[
-                QuickReplyButton(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
-                QuickReplyButton(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
+                QuickReplyItem(action=MessageAction(label="✅ ยืนยันลบ", text=f"ยืนยันลบ {event_id}")),
+                QuickReplyItem(action=MessageAction(label="❌ ยกเลิก", text="สวัสดี"))
             ])
             
             safe_reply(reply_token, [TextMessage(
@@ -1168,6 +1312,13 @@ app_handler = vercel_handler
 def application(environ, start_response):
     return app(environ, start_response)
 
+# Start notification system when app starts
+try:
+    start_notification_system()
+    print("[INIT] 🔔 Notification system initialized")
+except Exception as e:
+    print(f"[INIT] ⚠️ Notification system failed to start: {e}")
+
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 10000))
     print(f"LINE BOT v2.0 Starting on port {port}")
@@ -1175,4 +1326,5 @@ if __name__ == "__main__":
     print("Bulletproof error handling!")
     print("Beautiful Flex Messages!")
     print("PostbackEvent working correctly!")
+    print("🔔 Auto-notification system active!")
     app.run(host='0.0.0.0', port=port, debug=False)
