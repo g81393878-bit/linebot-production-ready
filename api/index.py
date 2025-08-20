@@ -350,7 +350,7 @@ def create_beautiful_flex_message_working(events, user_id=None):
                                 "color": "#1DB446" if is_owner else "#666666",
                                 "size": "sm",
                                 "flex": 5,
-                                "weight": "bold" if is_owner else "normal"
+                                "weight": "bold" if is_owner else "regular"
                             }
                         ]
                     }
