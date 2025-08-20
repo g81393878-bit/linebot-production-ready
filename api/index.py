@@ -20,9 +20,16 @@ from dotenv import load_dotenv
 from supabase import create_client
 import time
 import traceback
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-import atexit
+# Conditional import for notification system
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+    import atexit
+    SCHEDULER_AVAILABLE = True
+    print("[IMPORT] ✅ APScheduler imported successfully")
+except ImportError:
+    SCHEDULER_AVAILABLE = False
+    print("[IMPORT] ⚠️ APScheduler not available - notification system disabled")
 
 # Load environment variables
 load_dotenv()
@@ -203,24 +210,30 @@ def check_and_send_notifications():
     except Exception as e:
         print(f"[NOTIFICATION] ❌ Check failed: {e}")
 
-# Initialize notification scheduler
-scheduler = BackgroundScheduler()
-scheduler.add_job(
-    func=check_and_send_notifications,
-    trigger=IntervalTrigger(minutes=5),  # Check every 5 minutes
-    id='notification_checker',
-    name='Check and send notifications',
-    replace_existing=True
-)
+# Initialize notification scheduler (only if APScheduler available)
+scheduler = None
+if SCHEDULER_AVAILABLE:
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=check_and_send_notifications,
+        trigger=IntervalTrigger(minutes=5),  # Check every 5 minutes
+        id='notification_checker',
+        name='Check and send notifications',
+        replace_existing=True
+    )
 
 def start_notification_system():
     """Start the notification scheduler"""
     try:
+        if not SCHEDULER_AVAILABLE:
+            print("[NOTIFICATION] ⚠️ APScheduler not available - background notifications disabled")
+            return
+            
         create_notifications_table()
-        if not scheduler.running:
+        if scheduler and not scheduler.running:
             scheduler.start()
             print("[NOTIFICATION] 🔔 Scheduler started - checking every 5 minutes")
-        atexit.register(lambda: scheduler.shutdown())
+            atexit.register(lambda: scheduler.shutdown())
     except Exception as e:
         print(f"[NOTIFICATION] ❌ Failed to start scheduler: {e}")
 
