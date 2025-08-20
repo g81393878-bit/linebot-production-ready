@@ -1048,12 +1048,12 @@ def handle_postback(event):
         )])
 
 # Export app for Vercel - Fixed WSGI handler
-def handler(environ, start_response):
+def vercel_handler(environ, start_response):
     """Vercel WSGI handler function"""
     return app(environ, start_response)
 
 # Export for Vercel
-app_handler = handler
+app_handler = vercel_handler
 
 # For direct ASGI/WSGI compatibility
 def application(environ, start_response):
