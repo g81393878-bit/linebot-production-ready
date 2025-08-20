@@ -260,7 +260,9 @@ def create_beautiful_flex_message_working(events, user_id=None):
     
     bubbles = []
     
-    for event in events[:5]:
+    # LINE Carousel limit: 12 bubbles maximum
+    max_bubbles = min(len(events), 12)
+    for event in events[:max_bubbles]:
         title = event.get('event_title', 'ไม่มีชื่อ')
         description = event.get('event_description', 'ไม่มีรายละเอียด')
         event_date = format_thai_date(event.get('event_date', ''))
@@ -432,7 +434,12 @@ def create_beautiful_flex_message_working(events, user_id=None):
         "contents": bubbles
     }
     
-    return FlexMessage(alt_text=f"รายละเอียดกิจกรรม ({len(events)} รายการ)", contents=FlexContainer.from_dict(flex_content))
+    # Show total count including items not displayed
+    total_count = len(events) 
+    displayed_count = len(bubbles)
+    alt_text = f"รายละเอียดกิจกรรม ({displayed_count}/{total_count} รายการ)"
+    
+    return FlexMessage(alt_text=alt_text, contents=FlexContainer.from_dict(flex_content))
 
 # ===== ROUTES =====
 
@@ -623,14 +630,17 @@ def handle_message(event):
                 
                 if events:
                     # Show more events for better visibility
-                    events_to_show = events[:10]  # Show up to 10 events in Flex
+                    # LINE Carousel limit: 12 bubbles maximum
+                    events_to_show = events[:12]  # Show up to 12 events in Flex
                     flex_message = create_beautiful_flex_message_working(events_to_show, user_id)
                     if flex_message:
                         title_text = "📋 **กิจกรรมของคุณ**" if user_id not in admin_ids else "📋 **กิจกรรมทั้งหมด (Admin)**"
-                        extra_info = f"\n\n💡 แสดง {len(events_to_show)} จาก {len(events)} รายการ" if len(events) > 10 else ""
-                        if len(events) > 10:
+                        extra_info = f"\n\n💡 แสดง {len(events_to_show)} จาก {len(events)} รายการ" if len(events) > 12 else ""
+                        if len(events) > 12:
+                            # Add pagination info and search suggestion
+                            pagination_text = f"{title_text} ({len(events)} รายการ){extra_info}\n\n🔍 **หากต้องการดูเฉพาะบางรายการ:**\n• ใช้ \"ค้นหากิจกรรม\" ค้นหาด้วยชื่อ\n• ใช้ \"ค้นหาตามวันที่\" ดูตามวัน"
                             safe_reply(reply_token, [
-                                TextMessage(text=f"{title_text} ({len(events)} รายการ){extra_info}"),
+                                TextMessage(text=pagination_text),
                                 flex_message
                             ])
                         else:
@@ -739,7 +749,7 @@ def handle_message(event):
                             safe_reply(reply_token, [flex_message])
                         else:
                             result_text = f"🔍 **ผลการค้นหา: \"{search_query}\"**\n\n"
-                            for i, event in enumerate(events[:5], 1):
+                            for i, event in enumerate(events[:10], 1):  # Show more in text format
                                 title = event.get('event_title', 'ไม่มีชื่อ')
                                 event_date = format_thai_date(event.get('event_date', ''))
                                 result_text += f"{i}. **{title}**\n   📅 {event_date}\n\n"
