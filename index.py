@@ -772,10 +772,15 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="🤖 **WORKING 100% BOT v3.0**\n\n🎯 **เมนูใช้งาน (6 ฟีเจอร์):**\n• เพิ่มกิจกรรม\n• เพิ่มเบอร์โทร\n• ค้นหากิจกรรม\n• ค้นหาเบอร์โทร\n• ค้นหาตามวันที่\n• ดูกิจกรรมทั้งหมด\n\n💡 **กดปุ่มเมนู!**",
+                text="🎯 **24h Assistant Bot** 🎯\n\n✨ **6 ฟีเจอร์หลัก:**\n✳️ เพิ่มกิจกรรม\n✳️ เพิ่มเบอร์โทร\n✳️ ค้นหากิจกรรม\n✳️ ค้นหาเบอร์โทร\n✳️ ค้นหาตามวันที่\n✳️ ดูกิจกรรมทั้งหมด\n\n🔔 **+ แจ้งเตือนอัตโนมัติ**\n⚡ **กดปุ่มเมนูด้านล่าง!**",
                 quick_reply=create_main_menu()
             )])
             return
+
+        # Reset state if user types any main menu command while in a pending state
+        main_menu_commands = ["เพิ่มกิจกรรม", "เพิ่มเบอร์", "ค้นหากิจกรรม", "ค้นหาเบอร์", "ค้นหาตามวันที่", "ดูกิจกรรมทั้งหมด"]
+        if text in main_menu_commands and user_id in user_states:
+            user_states.pop(user_id, None)  # Clear any pending state
 
         # Main menu handlers
         if text == "เพิ่มกิจกรรม":
@@ -799,7 +804,7 @@ def handle_message(event):
         if text == "ค้นหาเบอร์":
             user_states[user_id] = {"step": "search_contacts"}
             safe_reply(reply_token, [TextMessage(
-                text="📞 **ค้นหาเบอร์**\n\n💡 พิมพ์ชื่อ 2-3 คำ:",
+                text="📞 **ค้นหาเบอร์**\n\n💡 **พิมพ์ 2-3 คำ:**\n• ค้นหาจากชื่อ\n• ค้นหาจากเบอร์โทร\n\n📝 **ตัวอย่าง:** ปัญญา บุญยัง, 085, พ.ต.ท.",
                 quick_reply=create_main_menu()
             )])
             return
@@ -1152,8 +1157,29 @@ def handle_message(event):
                 try:
                     search_query = text.strip()
                     
-                    # Search both name and phone_number fields
-                    contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    # Enhanced search: Split query into words for better partial matching
+                    search_words = search_query.split()
+                    if len(search_words) > 1:
+                        # Multi-word search: create OR conditions for each word
+                        word_conditions = []
+                        for word in search_words[:3]:  # Limit to 3 words max
+                            word = word.strip()
+                            if len(word) >= 2:  # Only search words with 2+ characters
+                                word_conditions.extend([
+                                    f'name.ilike.%{word}%',
+                                    f'phone_number.ilike.%{word}%'
+                                ])
+                        
+                        if word_conditions:
+                            # Join all conditions with OR
+                            search_condition = ','.join(word_conditions)
+                            contacts_response = supabase_client.table('contacts').select('*').or_(search_condition).order('created_at', desc=True).limit(10).execute()
+                        else:
+                            # Fallback to original search
+                            contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    else:
+                        # Single word search
+                        contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
                     
                     contacts = contacts_response.data if contacts_response.data else []
                     user_states.pop(user_id, None)
@@ -1164,7 +1190,20 @@ def handle_message(event):
                             name = contact.get('name', 'ไม่มีชื่อ')
                             phone = contact.get('phone_number', 'ไม่มีเบอร์')
                             contact_id = contact.get('id', '')
-                            result_text += f"{i}. **{name}**\n   📱 {phone}\n   🆔 ID: {contact_id}\n\n"
+                            created_by = contact.get('created_by', '')
+                            
+                            # Show which field matched (highlight)
+                            name_display = name
+                            phone_display = phone
+                            
+                            # Check if search terms appear in name or phone
+                            search_lower = search_query.lower()
+                            if search_lower in name.lower():
+                                name_display = f"🔍 **{name}**"
+                            if any(word in phone for word in search_query.split()):
+                                phone_display = f"🔍 **{phone}**"
+                            
+                            result_text += f"{i}. {name_display}\n   📱 {phone_display}\n   🆔 ID: {contact_id}\n\n"
                         safe_reply(reply_token, [TextMessage(text=result_text, quick_reply=create_main_menu())])
                     else:
                         safe_reply(reply_token, [TextMessage(
@@ -1316,9 +1355,23 @@ def handle_message(event):
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ", quick_reply=create_main_menu())])
             return
 
-        # Default response
+        # Check if user is stuck in a state and clear it
+        if user_id in user_states:
+            current_state = user_states.get(user_id, {})
+            step = current_state.get("step", "")
+            
+            # If user types something unrecognized while in a state, help them
+            if step:
+                user_states.pop(user_id, None)  # Clear the stuck state
+                safe_reply(reply_token, [TextMessage(
+                    text="🔄 **รีเซ็ตการดำเนินการ**\n\n💡 **เริ่มใหม่:** พิมพ์ 'สวัสดี' หรือกดปุ่มด้านล่าง\n\n🎯 **6 ฟีเจอร์พร้อมใช้!**",
+                    quick_reply=create_main_menu()
+                )])
+                return
+
+        # Default response for unrecognized commands
         safe_reply(reply_token, [TextMessage(
-            text="❓ **ไม่เข้าใจคำสั่ง**\n\n💡 **กดปุ่มเมนูด้านล่างเท่านั้น**\n\n🎯 **All 6 Features Available 100%!**",
+            text="❓ **ไม่เข้าใจคำสั่ง**\n\n💡 **วิธีใช้:**\n• พิมพ์ 'สวัสดี' เพื่อเริ่มต้น\n• กดปุ่มเมนูด้านล่างเท่านั้น\n\n🎯 **6 ฟีเจอร์พร้อมใช้!**",
             quick_reply=create_main_menu()
         )])
         
