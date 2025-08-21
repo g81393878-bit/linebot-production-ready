@@ -109,18 +109,8 @@ def create_notifications_table():
         supabase_client.table('notifications').select('*').limit(1).execute()
         print("[DB] notifications table already exists")
     except:
-        print("[DB] Creating notifications table...")
-        # Table doesn't exist, it will be created manually through Supabase dashboard
-        # Schema:
-        # CREATE TABLE notifications (
-        #     id SERIAL PRIMARY KEY,
-        #     event_id INTEGER REFERENCES events(id),
-        #     user_id TEXT NOT NULL,
-        #     notification_time TIMESTAMP WITH TIME ZONE,
-        #     message TEXT,
-        #     sent BOOLEAN DEFAULT FALSE,
-        #     created_at TIMESTAMP DEFAULT NOW()
-        # );
+        print("[DB] notifications table will be created manually in Supabase")
+        # Schema is defined in the SQL you provided
         pass
 
 def send_notification(user_id, message):
@@ -157,18 +147,15 @@ def keep_alive_ping():
         print(f"[KEEP-ALIVE] ❌ Ping failed: {e}")
 
 def check_and_send_notifications():
-    """Check for pending notifications and send them"""
+    """Check for pending notifications and send them + keep service alive"""
     try:
-        # Keep service alive
+        # Keep service alive (prevent Render sleep)
         keep_alive_ping()
         
         thai_tz = pytz.timezone('Asia/Bangkok')
         now = datetime.now(thai_tz)
         
         # Get events that need notification (within next 1 hour)
-        one_hour_later = now + timedelta(hours=1)
-        
-        # Get all events happening in the next hour
         events_response = supabase_client.table('events').select('*').gte('event_date', now.date()).execute()
         
         for event in events_response.data:
@@ -182,39 +169,42 @@ def check_and_send_notifications():
                 # Set time to 9:00 AM for notification
                 event_datetime = event_date.replace(hour=9, minute=0, second=0)
                 
-                # Check if we should send notification (1 hour before 9 AM = 8 AM)
-                notification_time = event_datetime - timedelta(hours=1)
+                # Check if we should send notification (3 hours before 9 AM = 6 AM)
+                notification_time = event_datetime - timedelta(hours=3)
                 
                 # Send notification if current time is within 10 minutes of notification time
                 time_diff = abs((now - notification_time).total_seconds())
                 
                 if time_diff <= 600:  # Within 10 minutes
                     # Check if notification already sent
-                    check_sent = supabase_client.table('notifications').select('*').eq('event_id', event['id']).eq('sent', True).execute()
-                    
-                    if not check_sent.data:  # Not sent yet
-                        event_title = event.get('event_title', 'กิจกรรม')
-                        user_id = event.get('created_by')
+                    try:
+                        check_sent = supabase_client.table('notifications').select('*').eq('event_id', event['id']).eq('sent', True).execute()
                         
-                        if user_id:
-                            # Format Thai date
-                            formatted_date = format_thai_date(event_date_str)
+                        if not check_sent.data:  # Not sent yet
+                            event_title = event.get('event_title', 'กิจกรรม')
+                            user_id = event.get('created_by')
                             
-                            message = f"🔔 **แจ้งเตือนกิจกรรม**\n\n📝 {event_title}\n📅 {formatted_date}\n⏰ อีก 1 ชั่วโมง (9:00 น.)\n\n💡 อย่าลืมเตรียมตัวนะ!"
-                            
-                            if send_notification(user_id, message):
-                                # Mark as sent
-                                try:
-                                    supabase_client.table('notifications').insert({
-                                        'event_id': event['id'],
-                                        'user_id': user_id,
-                                        'notification_time': now.isoformat(),
-                                        'message': message,
-                                        'sent': True
-                                    }).execute()
-                                    print(f"[NOTIFICATION] ✅ Logged notification for event {event['id']}")
-                                except:
-                                    print(f"[NOTIFICATION] ⚠️ Failed to log notification")
+                            if user_id:
+                                # Format Thai date
+                                formatted_date = format_thai_date(event_date_str)
+                                
+                                message = f"🔔 **แจ้งเตือนกิจกรรม**\n\n📝 {event_title}\n📅 {formatted_date}\n⏰ อีก 3 ชั่วโมง (9:00 น.)\n\n💡 อย่าลืมเตรียมตัวนะ!"
+                                
+                                if send_notification(user_id, message):
+                                    # Mark as sent
+                                    try:
+                                        supabase_client.table('notifications').insert({
+                                            'event_id': event['id'],
+                                            'user_id': user_id,
+                                            'notification_time': now.isoformat(),
+                                            'message': message,
+                                            'sent': True
+                                        }).execute()
+                                        print(f"[NOTIFICATION] ✅ Logged notification for event {event['id']}")
+                                    except Exception as log_error:
+                                        print(f"[NOTIFICATION] ⚠️ Failed to log notification: {log_error}")
+                    except Exception as db_error:
+                        print(f"[NOTIFICATION] ⚠️ Database check failed: {db_error}")
                 
             except Exception as e:
                 print(f"[NOTIFICATION] Error processing event {event.get('id')}: {e}")
@@ -282,6 +272,7 @@ def format_thai_date(date_str):
         # Convert to Thai format
         thai_months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
                       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+        # Use Buddhist year (พ.ศ.) - Thai standard format
         thai_year = date_obj.year + 543
         return f"{date_obj.day} {thai_months[date_obj.month-1]} {thai_year}"
     except:
@@ -421,14 +412,15 @@ def create_calendar_quick_reply():
     # Today and next 9 days (10 total)
     for i in range(10):
         date = today + timedelta(days=i)
+        thai_year = date.year + 543
         if i == 0:
-            label = f"วันนี้ ({date.day}/{date.month})"
+            label = f"วันนี้ ({date.day}/{date.month}/{thai_year})"
         elif i == 1:
-            label = f"พรุ่งนี้ ({date.day}/{date.month})"
+            label = f"พรุ่งนี้ ({date.day}/{date.month}/{thai_year})"
         else:
             weekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
             weekday = weekdays[date.weekday()]
-            label = f"{weekday} {date.day}/{date.month}"
+            label = f"{weekday} {date.day}/{date.month}/{thai_year}"
         
         items.append(QuickReplyItem(action=MessageAction(
             label=label, 
@@ -441,11 +433,14 @@ def create_calendar_quick_reply():
         text="พิมพ์วันที่"
     )))
     
-    # Add next month option
+    # Add next month option with Thai year
     next_month = today.replace(day=1) + timedelta(days=32)
     next_month = next_month.replace(day=1)
+    thai_months_short = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
+    thai_next_month_year = next_month.year + 543
     items.append(QuickReplyItem(action=MessageAction(
-        label=f"เดือน {next_month.month}", 
+        label=f"{thai_months_short[next_month.month-1]} {thai_next_month_year}", 
         text=f"เดือน:{next_month.strftime('%Y-%m')}"
     )))
     
@@ -886,7 +881,7 @@ def handle_message(event):
         # Handle calendar date selection
         if text == "พิมพ์วันที่":
             safe_reply(reply_token, [TextMessage(
-                text="📅 **พิมพ์วันที่ด้วยตัวเอง**\n\n💡 รูปแบบ: YYYY-MM-DD\n📝 ตัวอย่าง: 2025-08-21",
+                text="📅 **พิมพ์วันที่ด้วยตัวเอง**\n\n💡 รูปแบบ: YYYY-MM-DD\n📝 ตัวอย่าง: 2025-08-21 (แสดงเป็น 21 สิงหาคม 2568)",
                 quick_reply=create_main_menu()
             )])
             return
@@ -916,8 +911,11 @@ def handle_message(event):
                     except ValueError:
                         break  # Invalid date (e.g., Feb 30)
                 
+                thai_year_display = year + 543
+                thai_months_full = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                                   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
                 safe_reply(reply_token, [TextMessage(
-                    text=f"📅 **เลือกวันที่ เดือน {month}/{year}:**",
+                    text=f"📅 **เลือกวันที่ เดือน {thai_months_full[month-1]} {thai_year_display}:**",
                     quick_reply=QuickReply(items=items)
                 )])
             except:
@@ -1046,7 +1044,7 @@ def handle_message(event):
                     )])
                 except Exception as e:
                     print(f"[ERROR] Add event error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD")])
+                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)")])
                 return
 
             # Add contact flow
@@ -1145,7 +1143,7 @@ def handle_message(event):
                     )])
                 except Exception as e:
                     print(f"[ERROR] Edit event date error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD")])
+                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)")])
                 return
 
             # Search contacts flow
