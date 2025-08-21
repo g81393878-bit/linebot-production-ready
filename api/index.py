@@ -384,8 +384,7 @@ def create_main_menu():
         QuickReplyItem(action=MessageAction(label="ค้นหากิจกรรม", text="ค้นหากิจกรรม")),
         QuickReplyItem(action=MessageAction(label="ค้นหาเบอร์", text="ค้นหาเบอร์")),
         QuickReplyItem(action=MessageAction(label="ค้นหาตามวันที่", text="ค้นหาตามวันที่")),
-        QuickReplyItem(action=MessageAction(label="ดูกิจกรรมทั้งหมด", text="ดูกิจกรรมทั้งหมด")),
-        QuickReplyItem(action=MessageAction(label="🔍 ค้นหาเจ้าหน้าที่", text="ค้นหาเจ้าหน้าที่"))
+        QuickReplyItem(action=MessageAction(label="ดูกิจกรรมทั้งหมด", text="ดูกิจกรรมทั้งหมด"))
     ])
 
 def create_date_quick_reply():
@@ -675,494 +674,6 @@ def hello():
 🎯 **Build:** {current_time.strftime('%Y%m%d-%H%M%S')}
 🚀 **Status:** PRODUCTION OPERATIONAL"""
 
-@app.route("/search", methods=['GET'])
-def search_page():
-    """Beautiful search page for police staff directory"""
-    html_content = """<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔍 ค้นหาข้อมูลเจ้าหน้าที่ | สภ.มหาราช</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .search-section {
-            padding: 40px 30px;
-            background: white;
-        }
-
-        .search-container {
-            position: relative;
-            max-width: 500px;
-            margin: 0 auto 30px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 15px 50px 15px 20px;
-            font-size: 1.1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 50px;
-            outline: none;
-            transition: all 0.3s ease;
-            background: #f8f9fa;
-        }
-
-        .search-input:focus {
-            border-color: #4facfe;
-            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
-            background: white;
-        }
-
-        .search-icon {
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 1.2rem;
-            color: #666;
-        }
-
-        .stats {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #666;
-            font-size: 1rem;
-        }
-
-        .table-container {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        th {
-            padding: 20px 15px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            position: relative;
-        }
-
-        th:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        th::after {
-            content: '↕️';
-            position: absolute;
-            right: 10px;
-            opacity: 0.6;
-        }
-
-        tbody tr {
-            transition: all 0.3s ease;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        tbody tr:hover {
-            background-color: #f8f9ff;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        td {
-            padding: 18px 15px;
-            font-size: 1rem;
-            line-height: 1.4;
-        }
-
-        .name-cell {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .position-cell {
-            color: #666;
-            font-style: italic;
-        }
-
-        .phone-cell {
-            font-family: 'Courier New', monospace;
-        }
-
-        .phone-link {
-            color: #4facfe;
-            text-decoration: none;
-            padding: 8px 16px;
-            border: 2px solid #4facfe;
-            border-radius: 25px;
-            transition: all 0.3s ease;
-            display: inline-block;
-            font-weight: 600;
-        }
-
-        .phone-link:hover {
-            background-color: #4facfe;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
-        }
-
-        .no-results {
-            text-align: center;
-            padding: 50px 20px;
-            color: #999;
-            font-size: 1.2rem;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 50px 20px;
-            color: #666;
-            font-size: 1.1rem;
-        }
-
-        .loading::after {
-            content: '';
-            animation: dots 1.5s infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: ''; }
-            40% { content: '.'; }
-            60% { content: '..'; }
-            80%, 100% { content: '...'; }
-        }
-
-        .footer {
-            background: #f8f9fa;
-            padding: 20px 30px;
-            text-align: center;
-            color: #666;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-
-            .header {
-                padding: 20px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .search-section {
-                padding: 30px 20px;
-            }
-
-            table {
-                font-size: 0.9rem;
-            }
-
-            th, td {
-                padding: 12px 8px;
-            }
-
-            .phone-link {
-                padding: 6px 12px;
-                font-size: 0.9rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.7rem;
-            }
-
-            .search-input {
-                font-size: 1rem;
-                padding: 12px 40px 12px 15px;
-            }
-
-            th, td {
-                padding: 10px 5px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔍 ค้นหาข้อมูลเจ้าหน้าที่</h1>
-            <p>สภ.มหาราช | ระบบค้นหาที่ง่าย รวดเร็ว</p>
-        </div>
-
-        <div class="search-section">
-            <div class="search-container">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    class="search-input" 
-                    placeholder="🔍 ค้นหาชื่อเจ้าหน้าที่..." 
-                    autocomplete="off"
-                >
-                <div class="search-icon">🔍</div>
-            </div>
-
-            <div class="stats" id="stats">
-                <div class="loading">กำลังโหลดข้อมูล</div>
-            </div>
-
-            <div class="table-container">
-                <table id="dataTable">
-                    <thead>
-                        <tr>
-                            <th onclick="sortTable(0)" data-column="0">👤 ชื่อ-นามสกุล</th>
-                            <th onclick="sortTable(1)" data-column="1">💼 ตำแหน่ง</th>
-                            <th onclick="sortTable(2)" data-column="2">📞 เบอร์โทร</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- Data will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>💡 <strong>คำแนะนำ:</strong> พิมพ์ชื่อหรือตำแหน่งในช่องค้นหา | คลิกหัวตารางเพื่อเรียงลำดับ | คลิกเบอร์โทรเพื่อโทรออก</p>
-        </div>
-    </div>
-
-    <script>
-        let allData = [];
-        let currentSort = { column: -1, direction: 'asc' };
-
-        // Load data from Google Apps Script
-        async function loadData() {
-            try {
-                const response = await fetch('https://script.google.com/macros/s/AKfycbyCwaTY0wkCMyQJP5uNCnxSf3VgSvSQFluGbe7CQAnfRRy6je6PdQz_UqvSWgqWtkA5/exec');
-                const html = await response.text();
-                
-                // Parse HTML to extract table data
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const rows = doc.querySelectorAll('table tbody tr');
-                
-                allData = [];
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length >= 3) {
-                        allData.push({
-                            name: cells[0].textContent.trim(),
-                            position: cells[1].textContent.trim(),
-                            phone: cells[2].textContent.trim()
-                        });
-                    }
-                });
-
-                renderTable(allData);
-                updateStats(allData.length, allData.length);
-
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('stats').innerHTML = '❌ เกิดข้อผิดพลาดในการโหลดข้อมูล';
-                document.getElementById('tableBody').innerHTML = `
-                    <tr><td colspan="3" class="no-results">
-                        ❌ ไม่สามารถโหลดข้อมูลได้<br>
-                        <small>กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต</small>
-                    </td></tr>
-                `;
-            }
-        }
-
-        // Render table with data
-        function renderTable(data) {
-            const tbody = document.getElementById('tableBody');
-            
-            if (data.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="3" class="no-results">
-                        🔍 ไม่พบข้อมูลที่ค้นหา<br>
-                        <small>ลองใช้คำค้นหาอื่น หรือตรวจสอบการสะกด</small>
-                    </td></tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = data.map(item => `
-                <tr>
-                    <td class="name-cell">${escapeHtml(item.name)}</td>
-                    <td class="position-cell">${escapeHtml(item.position)}</td>
-                    <td class="phone-cell">
-                        <a href="tel:${item.phone}" class="phone-link" title="คลิกเพื่อโทรออก">
-                            📞 ${escapeHtml(item.phone)}
-                        </a>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        // Search functionality
-        function searchData() {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            
-            if (!query) {
-                renderTable(allData);
-                updateStats(allData.length, allData.length);
-                return;
-            }
-
-            const filtered = allData.filter(item => 
-                item.name.toLowerCase().includes(query) ||
-                item.position.toLowerCase().includes(query) ||
-                item.phone.includes(query)
-            );
-
-            renderTable(filtered);
-            updateStats(filtered.length, allData.length);
-        }
-
-        // Sort table
-        function sortTable(columnIndex) {
-            const columns = ['name', 'position', 'phone'];
-            const column = columns[columnIndex];
-            
-            // Toggle direction if same column, otherwise default to ascending
-            if (currentSort.column === columnIndex) {
-                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.direction = 'asc';
-                currentSort.column = columnIndex;
-            }
-
-            // Sort data
-            const sortedData = [...allData].sort((a, b) => {
-                const valueA = a[column].toLowerCase();
-                const valueB = b[column].toLowerCase();
-                
-                if (currentSort.direction === 'asc') {
-                    return valueA.localeCompare(valueB, 'th');
-                } else {
-                    return valueB.localeCompare(valueA, 'th');
-                }
-            });
-
-            // Update visual indicators
-            updateSortIndicators(columnIndex, currentSort.direction);
-            
-            // Re-render with sorted data
-            allData = sortedData;
-            searchData(); // Apply current search to sorted data
-        }
-
-        // Update sort indicators
-        function updateSortIndicators(activeColumn, direction) {
-            const headers = document.querySelectorAll('th[data-column]');
-            headers.forEach((header, index) => {
-                if (index === activeColumn) {
-                    header.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                    header.innerHTML = header.innerHTML.replace(/[↕️↑↓]/, direction === 'asc' ? '↑' : '↓');
-                } else {
-                    header.style.backgroundColor = '';
-                    header.innerHTML = header.innerHTML.replace(/[↕️↑↓]/, '↕️');
-                }
-            });
-        }
-
-        // Update statistics
-        function updateStats(showing, total) {
-            const stats = document.getElementById('stats');
-            if (showing === total) {
-                stats.innerHTML = `📊 แสดง <strong>${total}</strong> รายการ`;
-            } else {
-                stats.innerHTML = `📊 แสดง <strong>${showing}</strong> จาก <strong>${total}</strong> รายการ`;
-            }
-        }
-
-        // Escape HTML to prevent XSS
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Event listeners
-        document.getElementById('searchInput').addEventListener('input', searchData);
-        document.getElementById('searchInput').addEventListener('keyup', function(e) {
-            if (e.key === 'Enter') {
-                searchData();
-            }
-        });
-
-        // Load data when page loads
-        document.addEventListener('DOMContentLoaded', loadData);
-
-        // Add some smooth animations
-        document.addEventListener('DOMContentLoaded', function() {
-            const container = document.querySelector('.container');
-            container.style.opacity = '0';
-            container.style.transform = 'translateY(20px)';
-            
-            setTimeout(() => {
-                container.style.transition = 'all 0.6s ease';
-                container.style.opacity = '1';
-                container.style.transform = 'translateY(0)';
-            }, 100);
-        });
-    </script>
-</body>
-</html>"""
-    return html_content
 
 @app.route("/health", methods=['GET'])
 def health_check():
@@ -1261,7 +772,7 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="🤖 **WORKING 100% BOT v2.0**\n\n🎯 **เมนูใช้งาน:**\n• เพิ่มกิจกรรม\n• เพิ่มเบอร์โทร\n• ค้นหากิจกรรม\n• ค้นหาเบอร์โทร\n• ค้นหาตามวันที่\n• ดูกิจกรรมทั้งหมด\n• 🔍 ค้นหาเจ้าหน้าที่\n\n💡 **กดปุ่มเมนู!**",
+                text="⚡ **FORCE UPDATE v5.0** ⚡\n\n🆕 **เมนูอัปเดตแล้ว (เฉพาะ 6 ฟีเจอร์):**\n🟢 เพิ่มกิจกรรม\n🟢 เพิ่มเบอร์โทร\n🟢 ค้นหากิจกรรม\n🟢 ค้นหาเบอร์โทร\n🟢 ค้นหาตามวันที่\n🟢 ดูกิจกรรมทั้งหมด\n\n🔴 **ฟีเจอร์ค้นหาเจ้าหน้าที่ถูกลบแล้ว!**\n💡 **กดปุ่มเมนูด้านล่าง!**",
                 quick_reply=create_main_menu()
             )])
             return
@@ -1300,10 +811,10 @@ def handle_message(event):
             )])
             return
 
+        # Handle old cached "ค้นหาเจ้าหน้าที่" from LINE
         if text == "ค้นหาเจ้าหน้าที่":
-            search_url = "https://linebot-production-ready.onrender.com/search"
             safe_reply(reply_token, [TextMessage(
-                text="🔍 **ค้นหาเจ้าหน้าที่**\n\n🌐 **เปิดหน้าค้นหา:**\n" + search_url + "\n\n💡 **ฟีเจอร์:**\n• ค้นหาเจ้าหน้าที่ตามชื่อ\n• แสดงข้อมูลติดต่อ\n• โทรได้ทันที\n• เรียงลำดับได้",
+                text="🚫 **ฟีเจอร์ถูกลบแล้ว!**\n\n💡 **ข้อมูลเจ้าหน้าที่ย้ายไปใน:**\n📞 **ค้นหาเบอร์โทร** แทน!\n\n🔄 **วิธีใช้ใหม่:**\n1. พิมพ์ \"สวัสดี\" → เมนูใหม่\n2. เลือก \"ค้นหาเบอร์\" \n3. พิมพ์ชื่อเจ้าหน้าที่\n\n⚠️ ปิด-เปิดแอป LINE ใหม่เพื่ออัปเดต!",
                 quick_reply=create_main_menu()
             )])
             return
@@ -1339,7 +850,7 @@ def handle_message(event):
                             # Create "Next Page" quick reply for the flex message
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม")),
                                 QuickReplyItem(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
                             ])
                             
@@ -1479,13 +990,13 @@ def handle_message(event):
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
                                 QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         else:
                             # Last page - only show back to first page
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         
                         # Put quick reply on the flex message (last message)
@@ -1588,7 +1099,7 @@ def handle_message(event):
                         if flex_message:
                             safe_reply(reply_token, [flex_message])
                         else:
-                            result_text = f"🔍 **ผลการค้นหา: \"{search_query}\"**\n\n"
+                            result_text = f"🔎 **ผลการค้นหา: \"{search_query}\"**\n\n"
                             for i, event in enumerate(events[:10], 1):  # Show more in text format
                                 title = event.get('event_title', 'ไม่มีชื่อ')
                                 event_date = format_thai_date(event.get('event_date', ''))
@@ -1596,7 +1107,7 @@ def handle_message(event):
                             safe_reply(reply_token, [TextMessage(text=result_text, quick_reply=create_main_menu())])
                     else:
                         safe_reply(reply_token, [TextMessage(
-                            text=f"🔍 **ไม่พบกิจกรรม: \"{search_query}\"**\n\n💡 ลองคำอื่น",
+                            text=f"🔎 **ไม่พบกิจกรรม: \"{search_query}\"**\n\n💡 ลองคำอื่น",
                             quick_reply=create_main_menu()
                         )])
                 except Exception as e:
