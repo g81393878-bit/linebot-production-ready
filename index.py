@@ -772,7 +772,7 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="🤖 **WORKING 100% BOT v2.1**\n\n🎯 **เมนูใช้งาน:**\n• เพิ่มกิจกรรม\n• เพิ่มเบอร์โทร\n• ค้นหากิจกรรม\n• ค้นหาเบอร์โทร\n• ค้นหาตามวันที่\n• ดูกิจกรรมทั้งหมด\n\n💡 **กดปุ่มเมนู!**",
+                text="🤖 **WORKING 100% BOT v3.0**\n\n🎯 **เมนูใช้งาน (6 ฟีเจอร์):**\n• เพิ่มกิจกรรม\n• เพิ่มเบอร์โทร\n• ค้นหากิจกรรม\n• ค้นหาเบอร์โทร\n• ค้นหาตามวันที่\n• ดูกิจกรรมทั้งหมด\n\n💡 **กดปุ่มเมนู!**",
                 quick_reply=create_main_menu()
             )])
             return
@@ -842,7 +842,7 @@ def handle_message(event):
                             # Create "Next Page" quick reply for the flex message
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม")),
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม")),
                                 QuickReplyItem(action=MessageAction(label="📅 วันที่", text="ค้นหาตามวันที่"))
                             ])
                             
@@ -982,13 +982,13 @@ def handle_message(event):
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="📄 หน้าถัดไป", text="หน้าถัดไป")),
                                 QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         else:
                             # Last page - only show back to first page
                             quick_reply = QuickReply(items=[
                                 QuickReplyItem(action=MessageAction(label="🔙 หน้าแรก", text="ดูกิจกรรมทั้งหมด")),
-                                QuickReplyItem(action=MessageAction(label="🔍 ค้นหา", text="ค้นหากิจกรรม"))
+                                QuickReplyItem(action=MessageAction(label="🔎 ค้นหา", text="ค้นหากิจกรรม"))
                             ])
                         
                         # Put quick reply on the flex message (last message)
@@ -1091,7 +1091,7 @@ def handle_message(event):
                         if flex_message:
                             safe_reply(reply_token, [flex_message])
                         else:
-                            result_text = f"🔍 **ผลการค้นหา: \"{search_query}\"**\n\n"
+                            result_text = f"🔎 **ผลการค้นหา: \"{search_query}\"**\n\n"
                             for i, event in enumerate(events[:10], 1):  # Show more in text format
                                 title = event.get('event_title', 'ไม่มีชื่อ')
                                 event_date = format_thai_date(event.get('event_date', ''))
@@ -1099,7 +1099,7 @@ def handle_message(event):
                             safe_reply(reply_token, [TextMessage(text=result_text, quick_reply=create_main_menu())])
                     else:
                         safe_reply(reply_token, [TextMessage(
-                            text=f"🔍 **ไม่พบกิจกรรม: \"{search_query}\"**\n\n💡 ลองคำอื่น",
+                            text=f"🔎 **ไม่พบกิจกรรม: \"{search_query}\"**\n\n💡 ลองคำอื่น",
                             quick_reply=create_main_menu()
                         )])
                 except Exception as e:
