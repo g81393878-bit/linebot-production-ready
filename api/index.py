@@ -772,7 +772,7 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="⚡ **FORCE UPDATE v5.0** ⚡\n\n🆕 **เมนูอัปเดตแล้ว (เฉพาะ 6 ฟีเจอร์):**\n🟢 เพิ่มกิจกรรม\n🟢 เพิ่มเบอร์โทร\n🟢 ค้นหากิจกรรม\n🟢 ค้นหาเบอร์โทร\n🟢 ค้นหาตามวันที่\n🟢 ดูกิจกรรมทั้งหมด\n\n🔴 **ฟีเจอร์ค้นหาเจ้าหน้าที่ถูกลบแล้ว!**\n💡 **กดปุ่มเมนูด้านล่าง!**",
+                text="⚡ **FORCE UPDATE v5.0** ⚡\n\n🆕 **เมนูอัปเดตแล้ว (เฉพาะ 6 ฟีเจอร์):**\n🟢 เพิ่มกิจกรรม\n🟢 เพิ่มเบอร์โทร\n🟢 ค้นหากิจกรรม\n🟢 ค้นหาเบอร์โทร\n🟢 ค้นหาตามวันที่\n🟢 ดูกิจกรรมทั้งหมด\n\n🔴 **ฟีเจอร์พิเศษถูกลบแล้ว!**\n💡 **กดปุ่มเมนูด้านล่าง!**",
                 quick_reply=create_main_menu()
             )])
             return
@@ -808,14 +808,6 @@ def handle_message(event):
             safe_reply(reply_token, [TextMessage(
                 text="📅 **ค้นหาตามวันที่**\n\n💡 เลือกวันที่:",
                 quick_reply=create_date_quick_reply()
-            )])
-            return
-
-        # Handle old cached "ค้นหาเจ้าหน้าที่" from LINE
-        if text == "ค้นหาเจ้าหน้าที่":
-            safe_reply(reply_token, [TextMessage(
-                text="🚫 **ฟีเจอร์ถูกลบแล้ว!**\n\n💡 **ข้อมูลเจ้าหน้าที่ย้ายไปใน:**\n📞 **ค้นหาเบอร์โทร** แทน!\n\n🔄 **วิธีใช้ใหม่:**\n1. พิมพ์ \"สวัสดี\" → เมนูใหม่\n2. เลือก \"ค้นหาเบอร์\" \n3. พิมพ์ชื่อเจ้าหน้าที่\n\n⚠️ ปิด-เปิดแอป LINE ใหม่เพื่ออัปเดต!",
-                quick_reply=create_main_menu()
             )])
             return
 
