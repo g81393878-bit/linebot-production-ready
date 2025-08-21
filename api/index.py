@@ -413,6 +413,44 @@ def create_date_quick_reply():
     
     return QuickReply(items=dates)
 
+def create_calendar_quick_reply():
+    """Create calendar quick reply for date selection with more options"""
+    today = get_current_thai_time().date()
+    items = []
+    
+    # Today and next 9 days (10 total)
+    for i in range(10):
+        date = today + timedelta(days=i)
+        if i == 0:
+            label = f"วันนี้ ({date.day}/{date.month})"
+        elif i == 1:
+            label = f"พรุ่งนี้ ({date.day}/{date.month})"
+        else:
+            weekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
+            weekday = weekdays[date.weekday()]
+            label = f"{weekday} {date.day}/{date.month}"
+        
+        items.append(QuickReplyItem(action=MessageAction(
+            label=label, 
+            text=date.isoformat()
+        )))
+    
+    # Add manual input option
+    items.append(QuickReplyItem(action=MessageAction(
+        label="📅 วันอื่น", 
+        text="พิมพ์วันที่"
+    )))
+    
+    # Add next month option
+    next_month = today.replace(day=1) + timedelta(days=32)
+    next_month = next_month.replace(day=1)
+    items.append(QuickReplyItem(action=MessageAction(
+        label=f"เดือน {next_month.month}", 
+        text=f"เดือน:{next_month.strftime('%Y-%m')}"
+    )))
+    
+    return QuickReply(items=items)
+
 def create_beautiful_flex_message_working(events, user_id=None):
     """🎨 100% WORKING BEAUTIFUL FLEX MESSAGE"""
     if not events:
@@ -845,6 +883,50 @@ def handle_message(event):
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
             return
 
+        # Handle calendar date selection
+        if text == "พิมพ์วันที่":
+            safe_reply(reply_token, [TextMessage(
+                text="📅 **พิมพ์วันที่ด้วยตัวเอง**\n\n💡 รูปแบบ: YYYY-MM-DD\n📝 ตัวอย่าง: 2025-08-21",
+                quick_reply=create_main_menu()
+            )])
+            return
+
+        if text.startswith("เดือน:"):
+            month_str = text.replace("เดือน:", "").strip()
+            try:
+                year, month = month_str.split("-")
+                year, month = int(year), int(month)
+                
+                # Create calendar for specific month
+                first_day = datetime(year, month, 1).date()
+                items = []
+                
+                # Add dates for the month (up to 13 items due to QuickReply limit)
+                for day in range(1, min(32, 14)):
+                    try:
+                        date = first_day.replace(day=day)
+                        weekdays = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
+                        weekday = weekdays[date.weekday()]
+                        label = f"{weekday} {day}/{month}"
+                        
+                        items.append(QuickReplyItem(action=MessageAction(
+                            label=label,
+                            text=date.isoformat()
+                        )))
+                    except ValueError:
+                        break  # Invalid date (e.g., Feb 30)
+                
+                safe_reply(reply_token, [TextMessage(
+                    text=f"📅 **เลือกวันที่ เดือน {month}/{year}:**",
+                    quick_reply=QuickReply(items=items)
+                )])
+            except:
+                safe_reply(reply_token, [TextMessage(
+                    text="❌ รูปแบบเดือนไม่ถูกต้อง",
+                    quick_reply=create_main_menu()
+                )])
+            return
+
         # Test notification system (Admin only)
         if text == "ทดสอบแจ้งเตือน" and user_id in admin_ids:
             try:
@@ -940,7 +1022,10 @@ def handle_message(event):
             elif state["step"] == "add_event_description":
                 state["description"] = text
                 state["step"] = "add_event_date"
-                safe_reply(reply_token, [TextMessage(text="📅 พิมพ์วันที่ (YYYY-MM-DD):")])
+                safe_reply(reply_token, [TextMessage(
+                    text="📅 **เลือกวันที่:**",
+                    quick_reply=create_calendar_quick_reply()
+                )])
                 return
                 
             elif state["step"] == "add_event_date":
@@ -1033,7 +1118,10 @@ def handle_message(event):
             elif state["step"] == "edit_event_description":
                 state["description"] = text
                 state["step"] = "edit_event_date"
-                safe_reply(reply_token, [TextMessage(text="📅 พิมพ์วันที่ใหม่ (YYYY-MM-DD):")])
+                safe_reply(reply_token, [TextMessage(
+                    text="📅 **เลือกวันที่ใหม่:**",
+                    quick_reply=create_calendar_quick_reply()
+                )])
                 return
                 
             elif state["step"] == "edit_event_date":
