@@ -598,7 +598,7 @@ def create_beautiful_flex_message_working(events, user_id=None):
                                 "height": "sm",
                                 "action": {
                                     "type": "postback",
-                                    "label": "✏️ แก้ไข" if is_owner else "🔒 แก้ไข",
+                                    "label": "✏️ แก้ไข" if is_owner else "👑 แก้ไข",
                                     "data": f"edit_{event_id}" if is_owner else f"admin_edit_{event_id}"
                                 },
                                 "flex": 1
@@ -1191,10 +1191,10 @@ def handle_message(event):
                     safe_reply(reply_token, [TextMessage(text="❌ คุณสามารถจัดการได้เฉพาะกิจกรรมของคุณเอง", quick_reply=create_main_menu())])
                     return
                 
-                # Admin cannot edit other's events
-                if is_admin and not is_owner:
-                    safe_reply(reply_token, [TextMessage(text="❌ Admin สามารถลบได้ แต่แก้ไขได้เฉพาะเจ้าของ", quick_reply=create_main_menu())])
-                    return
+                # Admin can edit all events (updated policy)
+                # if is_admin and not is_owner:
+                #     safe_reply(reply_token, [TextMessage(text="❌ Admin สามารถลบได้ แต่แก้ไขได้เฉพาะเจ้าของ", quick_reply=create_main_menu())])
+                #     return
                 
                 user_states[user_id] = {"step": "edit_event_title", "event_id": event_id}
                 safe_reply(reply_token, [TextMessage(text=f"✏️ **แก้ไขกิจกรรม ID: {event_id}**\n\nพิมพ์ชื่อกิจกรรมใหม่:")])
@@ -1415,10 +1415,10 @@ def handle_postback(event):
                 safe_reply(reply_token, [TextMessage(text="❌ คุณสามารถจัดการได้เฉพาะกิจกรรมของคุณเอง", quick_reply=create_main_menu())])
                 return
             
-            # Admin cannot edit other's events, only delete
-            if is_admin_edit and not is_owner:
-                safe_reply(reply_token, [TextMessage(text="❌ Admin สามารถลบได้ แต่แก้ไขได้เฉพาะเจ้าของ", quick_reply=create_main_menu())])
-                return
+            # Admin can edit all events (updated policy)
+            # if is_admin_edit and not is_owner:
+            #     safe_reply(reply_token, [TextMessage(text="❌ Admin สามารถลบได้ แต่แก้ไขได้เฉพาะเจ้าของ", quick_reply=create_main_menu())])
+            #     return
             
             # Start edit flow
             user_states[user_id] = {"step": "edit_event_title", "event_id": event_id}
