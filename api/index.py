@@ -152,15 +152,15 @@ def send_notification(user_id, message):
         
         push_request = PushMessageRequest(
             to=user_id,
-            messages=[TextMessage(text=message)]
+            messages=[TextMessage(text=message, quick_reply=create_main_menu())]
         )
         
         line_bot_api.push_message(push_request)
-        print(f"[NOTIFICATION] ✅ Sent to User{user_id[-4:]}")
+        logger.info(f"[NOTIFICATION] ✅ Sent to User{user_id[-4:]}")
         return True
         
     except Exception as e:
-        print(f"[NOTIFICATION] ❌ Failed to send: {e}")
+        logger.error(f"[NOTIFICATION] ❌ Failed to send: {e}")
         return False
 
 def keep_alive_ping():
@@ -1211,12 +1211,12 @@ def handle_message(event):
         # Main menu handlers
         if text == "เพิ่มกิจกรรม":
             user_states[user_id] = {"step": "add_event_title"}
-            safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มกิจกรรม**\n\nพิมพ์ชื่อกิจกรรม:")])
+            safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มกิจกรรม**\n\nพิมพ์ชื่อกิจกรรม:", quick_reply=create_main_menu())])
             return
 
         if text == "เพิ่มโน๊ต":
             user_states[user_id] = {"step": "add_note_name"}
-            safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มโน๊ต**\n\nพิมพ์ชื่อโน๊ต:")])
+            safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มโน๊ต**\n\nพิมพ์ชื่อโน๊ต:", quick_reply=create_main_menu())])
             return
 
         if text == "ค้นหากิจกรรม":
@@ -1452,7 +1452,7 @@ def handle_message(event):
             if state["step"] == "add_event_title":
                 state["title"] = text
                 state["step"] = "add_event_description"
-                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์รายละเอียด:")])
+                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์รายละเอียด:", quick_reply=create_main_menu())])
                 return
                 
             elif state["step"] == "add_event_description":
@@ -1482,7 +1482,7 @@ def handle_message(event):
                     )])
                 except Exception as e:
                     print(f"[ERROR] Add event error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)")])
+                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)", quick_reply=create_main_menu())])
                 return
 
             # Add contact flow
@@ -1491,7 +1491,7 @@ def handle_message(event):
             elif state["step"] == "add_note_name":
                 state["name"] = text
                 state["step"] = "add_note_content"
-                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์เนื้อหาโน๊ต:")])
+                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์เนื้อหาโน๊ต:", quick_reply=create_main_menu())])
                 return
                 
             elif state["step"] == "add_note_content":
@@ -1509,7 +1509,7 @@ def handle_message(event):
                     )])
                 except Exception as e:
                     print(f"[ERROR] Add note error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด กรุณาลองใหม่")])
+                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด กรุณาลองใหม่", quick_reply=create_main_menu())])
                 return
 
             # Search events flow
@@ -1556,7 +1556,7 @@ def handle_message(event):
             elif state["step"] == "edit_event_title":
                 state["title"] = text
                 state["step"] = "edit_event_description"
-                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์รายละเอียดใหม่:")])
+                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์รายละเอียดใหม่:", quick_reply=create_main_menu())])
                 return
                 
             elif state["step"] == "edit_event_description":
@@ -1589,7 +1589,7 @@ def handle_message(event):
                     )])
                 except Exception as e:
                     print(f"[ERROR] Edit event date error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)")])
+                    safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)", quick_reply=create_main_menu())])
                 return
 
                 
@@ -1674,7 +1674,7 @@ def handle_message(event):
                 #     return
                 
                 user_states[user_id] = {"step": "edit_event_title", "event_id": event_id}
-                safe_reply(reply_token, [TextMessage(text=f"✏️ **แก้ไขกิจกรรม ID: {event_id}**\n\nพิมพ์ชื่อกิจกรรมใหม่:")])
+                safe_reply(reply_token, [TextMessage(text=f"✏️ **แก้ไขกิจกรรม ID: {event_id}**\n\nพิมพ์ชื่อกิจกรรมใหม่:", quick_reply=create_main_menu())])
             except Exception as e:
                 print(f"[ERROR] Edit command error: {e}")
                 safe_reply(reply_token, [TextMessage(text="❌ รูปแบบไม่ถูกต้อง ใช้: แก้ไข 123", quick_reply=create_main_menu())])
@@ -1859,10 +1859,10 @@ def handle_postback(event):
                         quick_reply=create_main_menu()
                     )])
                 else:
-                    safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ตนี้")])
+                    safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ตนี้", quick_reply=create_main_menu())])
             except Exception as e:
                 print(f"[ERROR] View note error: {e}")
-                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
             return
             
         elif data.startswith('edit_note_'):
@@ -1884,10 +1884,10 @@ def handle_postback(event):
                         quick_reply=create_main_menu()
                     )])
                 else:
-                    safe_reply(reply_token, [TextMessage(text="❌ ไม่สามารถลบได้")])
+                    safe_reply(reply_token, [TextMessage(text="❌ ไม่สามารถลบได้", quick_reply=create_main_menu())])
             except Exception as e:
                 print(f"[ERROR] Delete note error: {e}")
-                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ")])
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ", quick_reply=create_main_menu())])
             return
             
         elif data.startswith('notes_page_'):
@@ -1919,12 +1919,12 @@ def handle_postback(event):
                             }
                             safe_reply(reply_token, [flex_message])
                         else:
-                            safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ต")])
+                            safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ต", quick_reply=create_main_menu())])
                     else:
-                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบข้อมูลการค้นหา")])
+                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบข้อมูลการค้นหา", quick_reply=create_main_menu())])
             except Exception as e:
                 print(f"[ERROR] Notes pagination error: {e}")
-                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
             return
             
         elif data.startswith('events_page_'):
@@ -1985,10 +1985,10 @@ def handle_postback(event):
                         }
                         safe_reply(reply_token, [flex_message])
                     else:
-                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบกิจกรรม")])
+                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบกิจกรรม", quick_reply=create_main_menu())])
             except Exception as e:
                 print(f"[ERROR] Events pagination error: {e}")
-                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
             return
 
         if data.startswith('complete_'):
@@ -2061,7 +2061,7 @@ def handle_postback(event):
             
             # Start edit flow
             user_states[user_id] = {"step": "edit_event_title", "event_id": event_id}
-            safe_reply(reply_token, [TextMessage(text=f"✏️ **แก้ไขกิจกรรม ID: {event_id}**\n\nพิมพ์ชื่อกิจกรรมใหม่:")])
+            safe_reply(reply_token, [TextMessage(text=f"✏️ **แก้ไขกิจกรรม ID: {event_id}**\n\nพิมพ์ชื่อกิจกรรมใหม่:", quick_reply=create_main_menu())])
             
         elif data.startswith('delete_'):
             event_id = data.replace('delete_', '')
