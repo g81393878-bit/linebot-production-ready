@@ -381,8 +381,10 @@ def create_main_menu():
     return QuickReply(items=[
         QuickReplyItem(action=MessageAction(label="เพิ่มกิจกรรม", text="เพิ่มกิจกรรม")),
         QuickReplyItem(action=MessageAction(label="เพิ่มเบอร์", text="เพิ่มเบอร์")),
+        QuickReplyItem(action=MessageAction(label="เพิ่มโน๊ต", text="เพิ่มโน๊ต")),
         QuickReplyItem(action=MessageAction(label="ค้นหากิจกรรม", text="ค้นหากิจกรรม")),
         QuickReplyItem(action=MessageAction(label="ค้นหาเบอร์", text="ค้นหาเบอร์")),
+        QuickReplyItem(action=MessageAction(label="ค้นหาโน๊ต", text="ค้นหาโน๊ต")),
         QuickReplyItem(action=MessageAction(label="ค้นหาตามวันที่", text="ค้นหาตามวันที่")),
         QuickReplyItem(action=MessageAction(label="ดูกิจกรรมทั้งหมด", text="ดูกิจกรรมทั้งหมด"))
     ])
@@ -658,9 +660,11 @@ def hello():
 
 ✅ **Features (100% Working):**
 • เพิ่มกิจกรรม ✅
-• เพิ่มเบอร์โทร ✅ 
+• เพิ่มเบอร์โทร ✅
+• เพิ่มโน๊ต ✅
 • ค้นหากิจกรรม ✅
 • ค้นหาเบอร์โทร ✅
+• ค้นหาโน๊ต ✅
 • ค้นหาตามวันที่ ✅
 • ดูกิจกรรมทั้งหมด ✅
 
@@ -772,10 +776,15 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="🎯 **24h Assistant Bot** 🎯\n\n✨ **6 ฟีเจอร์หลัก:**\n✳️ เพิ่มกิจกรรม\n✳️ เพิ่มเบอร์โทร\n✳️ ค้นหากิจกรรม\n✳️ ค้นหาเบอร์โทร\n✳️ ค้นหาตามวันที่\n✳️ ดูกิจกรรมทั้งหมด\n\n🔔 **+ แจ้งเตือนอัตโนมัติ**\n⚡ **กดปุ่มเมนูด้านล่าง!**",
+                text="🎯 **24h Assistant Bot** 🎯\n\n✨ **8 ฟีเจอร์หลัก:**\n✳️ เพิ่มกิจกรรม\n✳️ เพิ่มเบอร์โทร\n✳️ เพิ่มโน๊ต\n✳️ ค้นหากิจกรรม\n✳️ ค้นหาเบอร์โทร\n✳️ ค้นหาโน๊ต\n✳️ ค้นหาตามวันที่\n✳️ ดูกิจกรรมทั้งหมด\n\n🔔 **+ แจ้งเตือนอัตโนมัติ**\n⚡ **กดปุ่มเมนูด้านล่าง!**",
                 quick_reply=create_main_menu()
             )])
             return
+
+        # Reset state if user types any main menu command while in a pending state
+        main_menu_commands = ["เพิ่มกิจกรรม", "เพิ่มเบอร์", "เพิ่มโน๊ต", "ค้นหากิจกรรม", "ค้นหาเบอร์", "ค้นหาโน๊ต", "ค้นหาตามวันที่", "ดูกิจกรรมทั้งหมด"]
+        if text in main_menu_commands and user_id in user_states:
+            user_states.pop(user_id, None)  # Clear any pending state
 
         # Main menu handlers
         if text == "เพิ่มกิจกรรม":
@@ -786,6 +795,11 @@ def handle_message(event):
         if text == "เพิ่มเบอร์":
             user_states[user_id] = {"step": "add_contact_name"}
             safe_reply(reply_token, [TextMessage(text="📞 **เพิ่มเบอร์โทร**\n\nพิมพ์ชื่อ:")])
+            return
+            
+        if text == "เพิ่มโน๊ต":
+            user_states[user_id] = {"step": "add_note_name"}
+            safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มโน๊ต**\n\nพิมพ์ชื่อโน๊ต:")])
             return
 
         if text == "ค้นหากิจกรรม":
@@ -799,7 +813,15 @@ def handle_message(event):
         if text == "ค้นหาเบอร์":
             user_states[user_id] = {"step": "search_contacts"}
             safe_reply(reply_token, [TextMessage(
-                text="📞 **ค้นหาเบอร์**\n\n💡 พิมพ์ชื่อ 2-3 คำ:",
+                text="📞 **ค้นหาเบอร์**\n\n💡 **พิมพ์ 2-3 คำ:**\n• ค้นหาจากชื่อ\n• ค้นหาจากเบอร์โทร\n\n📝 **ตัวอย่าง:** ปัญญา บุญยัง, 085, พ.ต.ท.",
+                quick_reply=create_main_menu()
+            )])
+            return
+            
+        if text == "ค้นหาโน๊ต":
+            user_states[user_id] = {"step": "search_notes"}
+            safe_reply(reply_token, [TextMessage(
+                text="📝 **ค้นหาโน๊ต**\n\n💡 **พิมพ์ 2-3 คำ:**\n• ค้นหาจากชื่อโน๊ต\n• ค้นหาจากเนื้อหา\n\n📝 **ตัวอย่าง:** งาน ประชุม, รายชื่อ",
                 quick_reply=create_main_menu()
             )])
             return
@@ -1072,6 +1094,31 @@ def handle_message(event):
                     print(f"[ERROR] Add contact error: {e}")
                     safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด กรุณาลองใหม่")])
                 return
+                
+            # Add note flow
+            elif state["step"] == "add_note_name":
+                state["name"] = text
+                state["step"] = "add_note_content"
+                safe_reply(reply_token, [TextMessage(text="📄 พิมพ์เนื้อหาโน๊ต:")])
+                return
+                
+            elif state["step"] == "add_note_content":
+                try:
+                    supabase_client.table('contacts').insert({
+                        'name': state["name"],
+                        'phone_number': text.strip(),
+                        'created_by': user_id
+                    }).execute()
+                    
+                    user_states.pop(user_id, None)
+                    safe_reply(reply_token, [TextMessage(
+                        text=f"✅ **บันทึกโน๊ตเรียบร้อย!**\n\n📝 ชื่อ: {state['name']}\n📄 เนื้อหา: {text.strip()}",
+                        quick_reply=create_main_menu()
+                    )])
+                except Exception as e:
+                    print(f"[ERROR] Add note error: {e}")
+                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด กรุณาลองใหม่")])
+                return
 
             # Search events flow
             elif state["step"] == "search_events":
@@ -1152,28 +1199,108 @@ def handle_message(event):
                 try:
                     search_query = text.strip()
                     
-                    # Search both name and phone_number fields
-                    contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    # Enhanced search: Split query into words for better partial matching
+                    search_words = search_query.split()
+                    if len(search_words) > 1:
+                        # Multi-word search: create OR conditions for each word
+                        word_conditions = []
+                        for word in search_words[:3]:  # Limit to 3 words max
+                            word = word.strip()
+                            if len(word) >= 2:  # Only search words with 2+ characters
+                                word_conditions.extend([
+                                    f'name.ilike.%{word}%',
+                                    f'phone_number.ilike.%{word}%'
+                                ])
+                        
+                        if word_conditions:
+                            # Join all conditions with OR
+                            search_condition = ','.join(word_conditions)
+                            contacts_response = supabase_client.table('contacts').select('*').or_(search_condition).order('created_at', desc=True).limit(10).execute()
+                        else:
+                            # Fallback to original search
+                            contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    else:
+                        # Single word search
+                        contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
                     
                     contacts = contacts_response.data if contacts_response.data else []
                     user_states.pop(user_id, None)
                     
-                    if contacts:
-                        result_text = f"📞 **ผลการค้นหา: \"{search_query}\"** (พบ {len(contacts)} รายการ)\n\n"
-                        for i, contact in enumerate(contacts, 1):
-                            name = contact.get('name', 'ไม่มีชื่อ')
-                            phone = contact.get('phone_number', 'ไม่มีเบอร์')
-                            contact_id = contact.get('id', '')
-                            result_text += f"{i}. **{name}**\n   📱 {phone}\n   🆔 ID: {contact_id}\n\n"
-                        safe_reply(reply_token, [TextMessage(text=result_text, quick_reply=create_main_menu())])
-                    else:
+                    if not contacts:
                         safe_reply(reply_token, [TextMessage(
-                            text=f"📞 **ไม่พบเบอร์: \"{search_query}\"**\n\n💡 ลองคำอื่น",
+                            text=f"❌ **ไม่พบเบอร์โทร**\n\n🔍 คำค้นหา: \"{search_query}\"\n\n💡 **เคล็ดลับ:**\n• ลองค้นหาชื่อเฉพาะบางส่วน\n• ค้นหาด้วยตัวเลขเบอร์โทร\n• ตรวจสอบการสะกด",
                             quick_reply=create_main_menu()
                         )])
+                        return
+                    
+                    # Format results
+                    result_text = f"🔍 **ผลการค้นหาเบอร์** ({len(contacts)} รายการ)\n\n"
+                    for i, contact in enumerate(contacts, 1):
+                        created_by = contact.get('created_by', '')
+                        creator_info = f" (ID: {created_by[:8]}...)" if created_by else ""
+                        result_text += f"**{i}.** {contact['name']}\n📞 {contact['phone_number']}{creator_info}\n\n"
+                    
+                    safe_reply(reply_token, [TextMessage(
+                        text=result_text.strip(),
+                        quick_reply=create_main_menu()
+                    )])
                 except Exception as e:
                     print(f"[ERROR] Search contacts error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด", quick_reply=create_main_menu())])
+                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการค้นหา")])
+                return
+                
+            # Search notes flow
+            elif state["step"] == "search_notes":
+                try:
+                    search_query = text.strip()
+                    
+                    # Enhanced search: Split query into words for better partial matching
+                    search_words = search_query.split()
+                    if len(search_words) > 1:
+                        # Multi-word search: create OR conditions for each word
+                        word_conditions = []
+                        for word in search_words[:3]:  # Limit to 3 words max
+                            word = word.strip()
+                            if len(word) >= 2:  # Only search words with 2+ characters
+                                word_conditions.extend([
+                                    f'name.ilike.%{word}%',
+                                    f'phone_number.ilike.%{word}%'
+                                ])
+                        
+                        if word_conditions:
+                            # Join all conditions with OR
+                            search_condition = ','.join(word_conditions)
+                            notes_response = supabase_client.table('contacts').select('*').eq('created_by', user_id).or_(search_condition).order('created_at', desc=True).limit(10).execute()
+                        else:
+                            # Fallback to original search
+                            notes_response = supabase_client.table('contacts').select('*').eq('created_by', user_id).or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    else:
+                        # Single word search
+                        notes_response = supabase_client.table('contacts').select('*').eq('created_by', user_id).or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
+                    
+                    notes = notes_response.data if notes_response.data else []
+                    user_states.pop(user_id, None)
+                    
+                    if not notes:
+                        safe_reply(reply_token, [TextMessage(
+                            text=f"❌ **ไม่พบโน๊ต**\n\n🔍 คำค้นหา: \"{search_query}\"\n\n💡 **เคล็ดลับ:**\n• ลองค้นหาชื่อโน๊ตบางส่วน\n• ค้นหาจากเนื้อหาโน๊ต\n• ตรวจสอบการสะกด",
+                            quick_reply=create_main_menu()
+                        )])
+                        return
+                    
+                    # Format results
+                    result_text = f"🔍 **ผลการค้นหาโน๊ต** ({len(notes)} รายการ)\n\n"
+                    for i, note in enumerate(notes, 1):
+                        content_preview = note['phone_number'][:50] + ("..." if len(note['phone_number']) > 50 else "")
+                        result_text += f"**{i}.** {note['name']}\n📄 {content_preview}\n\n"
+                    
+                    safe_reply(reply_token, [TextMessage(
+                        text=result_text.strip(),
+                        quick_reply=create_main_menu()
+                    )])
+                except Exception as e:
+                    print(f"[ERROR] Search notes error: {e}")
+                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการค้นหา")])
                 return
 
         # Text commands for event management
@@ -1316,9 +1443,23 @@ def handle_message(event):
                 safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ", quick_reply=create_main_menu())])
             return
 
-        # Default response
+        # Check if user is stuck in a state and clear it
+        if user_id in user_states:
+            current_state = user_states.get(user_id, {})
+            step = current_state.get("step", "")
+            
+            # If user types something unrecognized while in a state, help them
+            if step:
+                user_states.pop(user_id, None)  # Clear the stuck state
+                safe_reply(reply_token, [TextMessage(
+                    text="🔄 **รีเซ็ตการดำเนินการ**\n\n💡 **เริ่มใหม่:** พิมพ์ 'สวัสดี' หรือกดปุ่มด้านล่าง\n\n🎯 **6 ฟีเจอร์พร้อมใช้!**",
+                    quick_reply=create_main_menu()
+                )])
+                return
+
+        # Default response for unrecognized commands
         safe_reply(reply_token, [TextMessage(
-            text="❓ **ไม่เข้าใจคำสั่ง**\n\n💡 **กดปุ่มเมนูด้านล่างเท่านั้น**\n\n🎯 **All 6 Features Available 100%!**",
+            text="❓ **ไม่เข้าใจคำสั่ง**\n\n💡 **วิธีใช้:**\n• พิมพ์ 'สวัสดี' เพื่อเริ่มต้น\n• กดปุ่มเมนูด้านล่างเท่านั้น\n\n🎯 **6 ฟีเจอร์พร้อมใช้!**",
             quick_reply=create_main_menu()
         )])
         
