@@ -448,16 +448,371 @@ def create_calendar_quick_reply():
     
     return QuickReply(items=items)
 
-def create_beautiful_flex_message_working(events, user_id=None):
+def create_note_flex_message(note):
+    """🎨 Create single note Flex Message with buttons"""
+    try:
+        note_id = note.get('id', '')
+        title = note.get('name', 'ไม่มีชื่อ')
+        content = note.get('phone_number', 'ไม่มีเนื้อหา')  # Using phone_number field for content
+        
+        # Limit content display
+        content_preview = content[:200] + ("..." if len(content) > 200 else "")
+        
+        bubble = {
+            "type": "bubble",
+            "hero": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "📝 โน๊ต",
+                        "weight": "bold",
+                        "color": "#ffffff",
+                        "size": "md"
+                    }
+                ],
+                "backgroundColor": "#1DB446",
+                "paddingAll": "20px"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": title,
+                        "weight": "bold",
+                        "size": "xl",
+                        "color": "#1DB446",
+                        "wrap": True
+                    },
+                    {
+                        "type": "separator",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": "รายละเอียด:",
+                        "weight": "bold",
+                        "color": "#666666",
+                        "margin": "md"
+                    },
+                    {
+                        "type": "text",
+                        "text": content_preview,
+                        "wrap": True,
+                        "color": "#333333",
+                        "size": "sm",
+                        "margin": "sm"
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "button",
+                                "style": "primary",
+                                "height": "sm",
+                                "action": {
+                                    "type": "postback",
+                                    "label": "ดูเต็ม",
+                                    "data": f"view_note_{note_id}"
+                                },
+                                "color": "#1DB446"
+                            },
+                            {
+                                "type": "button", 
+                                "style": "secondary",
+                                "height": "sm",
+                                "action": {
+                                    "type": "postback",
+                                    "label": "แก้ไข",
+                                    "data": f"edit_note_{note_id}"
+                                }
+                            },
+                            {
+                                "type": "button",
+                                "style": "secondary", 
+                                "height": "sm",
+                                "action": {
+                                    "type": "postback",
+                                    "label": "ลบ",
+                                    "data": f"delete_note_{note_id}"
+                                },
+                                "color": "#ff4444"
+                            }
+                        ],
+                        "spacing": "sm"
+                    }
+                ]
+            }
+        }
+        
+        return FlexMessage(alt_text=f"โน๊ต: {title}", contents=FlexContainer.from_dict(bubble))
+        
+    except Exception as e:
+        print(f"[ERROR] Create note flex error: {e}")
+        return None
+
+def create_notes_carousel_flex(notes, page=1, search_query=""):
+    """🎨 Create notes carousel Flex Message with pagination"""
+    try:
+        notes_per_page = 10  # Show 10 notes per page
+        total_notes = len(notes)
+        total_pages = (total_notes + notes_per_page - 1) // notes_per_page
+        
+        start_idx = (page - 1) * notes_per_page
+        end_idx = start_idx + notes_per_page
+        page_notes = notes[start_idx:end_idx]
+        
+        bubbles = []
+        
+        # Add pagination info bubble
+        info_bubble = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"📝 ผลการค้นหาโน๊ต",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#1DB446",
+                        "align": "center"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"หน้า {page}/{total_pages}",
+                        "size": "md",
+                        "color": "#666666",
+                        "align": "center",
+                        "margin": "sm"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"รวม {total_notes} รายการ",
+                        "size": "sm",
+                        "color": "#999999",
+                        "align": "center"
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": []
+            }
+        }
+        
+        # Add navigation buttons
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append({
+                "type": "button",
+                "style": "secondary",
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": "◀ ก่อนหน้า",
+                    "data": f"notes_page_{page-1}_{search_query}"
+                },
+                "flex": 1
+            })
+        
+        if page < total_pages:
+            nav_buttons.append({
+                "type": "button",
+                "style": "secondary", 
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": "ถัดไป ▶",
+                    "data": f"notes_page_{page+1}_{search_query}"
+                },
+                "flex": 1
+            })
+        
+        if nav_buttons:
+            info_bubble["footer"]["contents"] = nav_buttons
+            info_bubble["footer"]["spacing"] = "sm"
+        
+        bubbles.append(info_bubble)
+        
+        # Add note bubbles
+        for note in page_notes:
+            note_id = note.get('id', '')
+            title = note.get('name', 'ไม่มีชื่อ')
+            content = note.get('phone_number', 'ไม่มีเนื้อหา')
+            
+            # Short preview for carousel
+            content_preview = content[:80] + ("..." if len(content) > 80 else "")
+            
+            bubble = {
+                "type": "bubble",
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": "📝 " + title,
+                            "weight": "bold",
+                            "size": "lg",
+                            "color": "#1DB446",
+                            "wrap": True
+                        },
+                        {
+                            "type": "separator",
+                            "margin": "md"
+                        },
+                        {
+                            "type": "text",
+                            "text": content_preview,
+                            "wrap": True,
+                            "color": "#666666",
+                            "size": "sm",
+                            "margin": "md"
+                        }
+                    ]
+                },
+                "footer": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                        {
+                            "type": "button",
+                            "style": "primary",
+                            "height": "sm",
+                            "action": {
+                                "type": "postback",
+                                "label": "ดูเต็ม",
+                                "data": f"view_note_{note_id}"
+                            },
+                            "color": "#1DB446"
+                        }
+                    ]
+                }
+            }
+            bubbles.append(bubble)
+        
+        carousel = {
+            "type": "carousel",
+            "contents": bubbles
+        }
+        
+        return FlexMessage(alt_text=f"โน๊ต หน้า {page}/{total_pages}", contents=FlexContainer.from_dict(carousel))
+        
+    except Exception as e:
+        print(f"[ERROR] Create notes carousel error: {e}")
+        return None
+
+def create_beautiful_flex_message_working(events, user_id=None, page=1, search_query="", context_type="all"):
     """🎨 100% WORKING BEAUTIFUL FLEX MESSAGE"""
     if not events:
         return None
     
     bubbles = []
     
-    # LINE Carousel limit: 12 bubbles maximum
-    max_bubbles = min(len(events), 12)
-    for event in events[:max_bubbles]:
+    # Pagination settings
+    events_per_page = 10
+    total_events = len(events)
+    total_pages = (total_events + events_per_page - 1) // events_per_page
+    
+    start_idx = (page - 1) * events_per_page
+    end_idx = start_idx + events_per_page
+    page_events = events[start_idx:end_idx]
+    
+    # Add pagination info bubble
+    if total_pages > 1:
+        context_text = {
+            "all": "ดูกิจกรรมทั้งหมด",
+            "search": f"ผลการค้นหา: {search_query}",
+            "date": f"กิจกรรมวันที่: {search_query}"
+        }.get(context_type, "กิจกรรม")
+        
+        info_bubble = {
+            "type": "bubble",
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": f"📅 {context_text}",
+                        "weight": "bold",
+                        "size": "lg",
+                        "color": "#1DB446",
+                        "align": "center"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"หน้า {page}/{total_pages}",
+                        "size": "md",
+                        "color": "#666666",
+                        "align": "center",
+                        "margin": "sm"
+                    },
+                    {
+                        "type": "text",
+                        "text": f"รวม {total_events} รายการ",
+                        "size": "sm",
+                        "color": "#999999",
+                        "align": "center"
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [],
+                "spacing": "sm"
+            }
+        }
+        
+        # Add navigation buttons
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append({
+                "type": "button",
+                "style": "secondary",
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": "◀ ก่อนหน้า",
+                    "data": f"events_page_{page-1}_{context_type}_{search_query}"
+                },
+                "flex": 1
+            })
+        
+        if page < total_pages:
+            nav_buttons.append({
+                "type": "button",
+                "style": "secondary",
+                "height": "sm",
+                "action": {
+                    "type": "postback",
+                    "label": "ถัดไป ▶",
+                    "data": f"events_page_{page+1}_{context_type}_{search_query}"
+                },
+                "flex": 1
+            })
+        
+        if nav_buttons:
+            info_bubble["footer"]["contents"] = nav_buttons
+        
+        bubbles.append(info_bubble)
+    
+    # Add event bubbles
+    for event in page_events:
         title = event.get('event_title', 'ไม่มีชื่อ')
         description = event.get('event_description', 'ไม่มีรายละเอียด')
         event_date = format_thai_date(event.get('event_date', ''))
@@ -752,7 +1107,13 @@ def handle_message(event):
                 events = events_response.data if events_response.data else []
                 
                 if events:
-                    flex_message = create_beautiful_flex_message_working(events, user_id)
+                    flex_message = create_beautiful_flex_message_working(events, user_id, page=1, search_query="", context_type="date")
+                    # Store results for pagination
+                    user_states[user_id] = {
+                        "events_search_results": events,
+                        "events_context_type": "date",
+                        "events_search_query": date_str
+                    }
                     if flex_message:
                         safe_reply(reply_token, [flex_message])
                     else:
@@ -853,7 +1214,13 @@ def handle_message(event):
                     # Show more events for better visibility
                     # LINE Carousel limit: 12 bubbles maximum
                     events_to_show = events[:12]  # Show up to 12 events in Flex
-                    flex_message = create_beautiful_flex_message_working(events_to_show, user_id)
+                    flex_message = create_beautiful_flex_message_working(events_to_show, user_id, page=1, search_query="", context_type="all")
+                    # Store results for pagination
+                    user_states[user_id] = {
+                        "events_search_results": events,
+                        "events_context_type": "all",
+                        "events_search_query": ""
+                    }
                     if flex_message:
                         title_text = "📋 **กิจกรรมของคุณ**" if user_id not in admin_ids else "📋 **กิจกรรมทั้งหมด (Admin)**"
                         extra_info = f"\n\n💡 แสดง {len(events_to_show)} จาก {len(events)} รายการ" if len(events) > 12 else ""
@@ -991,7 +1358,7 @@ def handle_message(event):
                 events_to_show = events[offset:offset + 12]
                 
                 if events_to_show:
-                    flex_message = create_beautiful_flex_message_working(events_to_show, user_id)
+                    flex_message = create_beautiful_flex_message_working(events_to_show, user_id, page=current_page, search_query="", context_type="all")
                     if flex_message:
                         has_next_page = offset + 12 < total_events
                         start_num = offset + 1
@@ -1134,7 +1501,13 @@ def handle_message(event):
                     user_states.pop(user_id, None)
                     
                     if events:
-                        flex_message = create_beautiful_flex_message_working(events, user_id)
+                        flex_message = create_beautiful_flex_message_working(events, user_id, page=1, search_query=search_query, context_type="search")
+                        # Store results for pagination
+                        user_states[user_id] = {
+                            "events_search_results": events,
+                            "events_context_type": "search",
+                            "events_search_query": search_query
+                        }
                         if flex_message:
                             safe_reply(reply_token, [flex_message])
                         else:
@@ -1288,16 +1661,21 @@ def handle_message(event):
                         )])
                         return
                     
-                    # Format results
-                    result_text = f"🔍 **ผลการค้นหาโน๊ต** ({len(notes)} รายการ)\n\n"
-                    for i, note in enumerate(notes, 1):
-                        content_preview = note['phone_number'][:50] + ("..." if len(note['phone_number']) > 50 else "")
-                        result_text += f"**{i}.** {note['name']}\n📄 {content_preview}\n\n"
-                    
-                    safe_reply(reply_token, [TextMessage(
-                        text=result_text.strip(),
-                        quick_reply=create_main_menu()
-                    )])
+                    # Create Flex Message for notes with buttons
+                    if len(notes) == 1:
+                        # Single note - show full details with buttons
+                        note = notes[0]
+                        flex_message = create_note_flex_message(note)
+                        safe_reply(reply_token, [flex_message])
+                    else:
+                        # Multiple notes - create carousel with pagination
+                        flex_message = create_notes_carousel_flex(notes, page=1, search_query=search_query)
+                        # Store search results for pagination
+                        user_states[user_id] = {
+                            "notes_search_results": notes,
+                            "notes_search_query": search_query
+                        }
+                        safe_reply(reply_token, [flex_message])
                 except Exception as e:
                     print(f"[ERROR] Search notes error: {e}")
                     safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการค้นหา")])
@@ -1494,6 +1872,154 @@ def handle_postback(event):
             print(f"[RATE LIMIT] Ignoring duplicate postback from {user_id}")
             return
         
+        # Handle note actions
+        if data.startswith('view_note_'):
+            note_id = data.replace('view_note_', '')
+            try:
+                note_response = supabase_client.table('contacts').select('*').eq('id', note_id).execute()
+                if note_response.data:
+                    note = note_response.data[0]
+                    title = note.get('name', 'ไม่มีชื่อ')
+                    content = note.get('phone_number', 'ไม่มีเนื้อหา')
+                    
+                    full_text = f"📝 **{title}**\n\n📄 **รายละเอียดเต็ม:**\n{content}"
+                    safe_reply(reply_token, [TextMessage(
+                        text=full_text,
+                        quick_reply=create_main_menu()
+                    )])
+                else:
+                    safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ตนี้")])
+            except Exception as e:
+                print(f"[ERROR] View note error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+            return
+            
+        elif data.startswith('edit_note_'):
+            note_id = data.replace('edit_note_', '')
+            safe_reply(reply_token, [TextMessage(
+                text=f"⚠️ ฟีเจอร์แก้ไขโน๊ตยังไม่พร้อม\n📝 ID: {note_id}",
+                quick_reply=create_main_menu()
+            )])
+            return
+            
+        elif data.startswith('delete_note_'):
+            note_id = data.replace('delete_note_', '')
+            try:
+                # Delete the note
+                delete_response = supabase_client.table('contacts').delete().eq('id', note_id).execute()
+                if delete_response.data:
+                    safe_reply(reply_token, [TextMessage(
+                        text="✅ **ลบโน๊ตเรียบร้อย!**",
+                        quick_reply=create_main_menu()
+                    )])
+                else:
+                    safe_reply(reply_token, [TextMessage(text="❌ ไม่สามารถลบได้")])
+            except Exception as e:
+                print(f"[ERROR] Delete note error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการลบ")])
+            return
+            
+        elif data.startswith('notes_page_'):
+            # Handle pagination for notes search results
+            try:
+                parts = data.replace('notes_page_', '').split('_', 1)
+                page = int(parts[0])
+                search_query = parts[1] if len(parts) > 1 else ""
+                
+                # Get stored search results from user state
+                user_state = user_states.get(user_id, {})
+                stored_notes = user_state.get("notes_search_results", [])
+                
+                if stored_notes:
+                    flex_message = create_notes_carousel_flex(stored_notes, page=page, search_query=search_query)
+                    safe_reply(reply_token, [flex_message])
+                else:
+                    # If no stored results, perform new search
+                    if search_query:
+                        notes_response = supabase_client.table('contacts').select('*').eq('created_by', user_id).or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).execute()
+                        notes = notes_response.data if notes_response.data else []
+                        
+                        if notes:
+                            flex_message = create_notes_carousel_flex(notes, page=page, search_query=search_query)
+                            # Update stored results
+                            user_states[user_id] = {
+                                "notes_search_results": notes,
+                                "notes_search_query": search_query
+                            }
+                            safe_reply(reply_token, [flex_message])
+                        else:
+                            safe_reply(reply_token, [TextMessage(text="❌ ไม่พบโน๊ต")])
+                    else:
+                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบข้อมูลการค้นหา")])
+            except Exception as e:
+                print(f"[ERROR] Notes pagination error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+            return
+            
+        elif data.startswith('events_page_'):
+            # Handle pagination for events search results
+            try:
+                parts = data.replace('events_page_', '').split('_', 2)
+                page = int(parts[0])
+                context_type = parts[1] if len(parts) > 1 else "all"
+                search_query = parts[2] if len(parts) > 2 else ""
+                
+                # Get stored search results from user state
+                user_state = user_states.get(user_id, {})
+                stored_events = user_state.get("events_search_results", [])
+                
+                if stored_events:
+                    flex_message = create_beautiful_flex_message_working(
+                        stored_events, 
+                        user_id=user_id, 
+                        page=page, 
+                        search_query=search_query,
+                        context_type=context_type
+                    )
+                    safe_reply(reply_token, [flex_message])
+                else:
+                    # If no stored results, perform new search based on context
+                    events = []
+                    if context_type == "all":
+                        # Get all events
+                        if user_id in admin_ids:
+                            events_response = supabase_client.table('events').select('*').order('event_date', desc=False).execute()
+                        else:
+                            events_response = supabase_client.table('events').select('*').eq('created_by', user_id).order('event_date', desc=False).execute()
+                        events = events_response.data if events_response.data else []
+                    
+                    elif context_type == "search" and search_query:
+                        # Search events
+                        events_response = supabase_client.table('events').select('*').eq('created_by', user_id).or_(f'event_title.ilike.%{search_query}%,event_description.ilike.%{search_query}%').order('event_date', desc=False).execute()
+                        events = events_response.data if events_response.data else []
+                    
+                    elif context_type == "date" and search_query:
+                        # Date-based search
+                        events_response = supabase_client.table('events').select('*').eq('created_by', user_id).eq('event_date', search_query).order('event_date', desc=False).execute()
+                        events = events_response.data if events_response.data else []
+                    
+                    if events:
+                        flex_message = create_beautiful_flex_message_working(
+                            events, 
+                            user_id=user_id, 
+                            page=page, 
+                            search_query=search_query,
+                            context_type=context_type
+                        )
+                        # Update stored results
+                        user_states[user_id] = {
+                            "events_search_results": events,
+                            "events_context_type": context_type,
+                            "events_search_query": search_query
+                        }
+                        safe_reply(reply_token, [flex_message])
+                    else:
+                        safe_reply(reply_token, [TextMessage(text="❌ ไม่พบกิจกรรม")])
+            except Exception as e:
+                print(f"[ERROR] Events pagination error: {e}")
+                safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด")])
+            return
+
         if data.startswith('complete_'):
             event_id = data.replace('complete_', '')
             
