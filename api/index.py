@@ -14,22 +14,49 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, PostbackEvent
 import os
+import logging
 from datetime import datetime, timedelta
 import pytz
 from dotenv import load_dotenv
 from supabase import create_client
 import time
 import traceback
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+# Configuration Constants
+class Config:
+    # Pagination
+    MAX_FLEX_BUBBLES = 12
+    EVENTS_PER_PAGE = 10
+    NOTES_PER_PAGE = 10
+    
+    # Rate limiting
+    RATE_LIMIT_SECONDS = 2.0
+    MAX_RETRY_ATTEMPTS = 7
+    
+    # Content display
+    SHORT_CONTENT_PREVIEW = 50
+    LONG_CONTENT_PREVIEW = 200
+    
+    # Database limits
+    MAX_SEARCH_RESULTS = 10
+    MAX_TEXT_DISPLAY_EVENTS = 20
+
 # Conditional import for notification system
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.interval import IntervalTrigger
     import atexit
     SCHEDULER_AVAILABLE = True
-    print("[IMPORT] ✅ APScheduler imported successfully")
+    logger.info("APScheduler imported successfully")
 except ImportError:
     SCHEDULER_AVAILABLE = False
-    print("[IMPORT] ⚠️ APScheduler not available - notification system disabled")
+    logger.warning("APScheduler not available - notification system disabled")
 
 # Load environment variables
 load_dotenv()
@@ -39,9 +66,9 @@ def get_env_var(var_name, default=None):
     """Get environment variable with validation"""
     value = os.getenv(var_name, default)
     if not value:
-        print(f"[WARNING] Environment variable {var_name} is missing!")
+        logger.warning(f"Environment variable {var_name} is missing!")
         if var_name in ['LINE_ACCESS_TOKEN', 'LINE_CHANNEL_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY']:
-            print(f"[CRITICAL] {var_name} is required for bot operation!")
+            logger.critical(f"{var_name} is required for bot operation!")
     return value
 
 # Configuration with validation
@@ -54,10 +81,10 @@ supabase_key = get_env_var('SUPABASE_SERVICE_KEY')
 admin_ids = ['Uc88eb3896b0e4bcc5fbaa9b78ac1294e']
 
 # Print environment status (masked)
-print(f"[CONFIG] LINE_ACCESS_TOKEN: {'✅ Set' if line_access_token else '❌ Missing'}")
-print(f"[CONFIG] LINE_CHANNEL_SECRET: {'✅ Set' if line_channel_secret else '❌ Missing'}")
-print(f"[CONFIG] SUPABASE_URL: {'✅ Set' if supabase_url else '❌ Missing'}")
-print(f"[CONFIG] SUPABASE_SERVICE_KEY: {'✅ Set' if supabase_key else '❌ Missing'}")
+logger.info(f"LINE_ACCESS_TOKEN: {'✅ Set' if line_access_token else '❌ Missing'}")
+logger.info(f"LINE_CHANNEL_SECRET: {'✅ Set' if line_channel_secret else '❌ Missing'}")
+logger.info(f"SUPABASE_URL: {'✅ Set' if supabase_url else '❌ Missing'}")
+logger.info(f"SUPABASE_SERVICE_KEY: {'✅ Set' if supabase_key else '❌ Missing'}")
 
 # Initialize services with better error handling
 try:
@@ -74,10 +101,10 @@ try:
     handler = WebhookHandler(line_channel_secret)
     line_bot_api = MessagingApi(ApiClient(configuration))
     supabase_client = create_client(supabase_url, supabase_key)
-    print("[SUCCESS] ✅ All services initialized successfully!")
+    logger.info("All services initialized successfully!")
 except Exception as e:
-    print(f"[CRITICAL ERROR] ❌ Error initializing services: {e}")
-    print("[INFO] Bot will start but may not function properly until environment variables are set")
+    logger.critical(f"Error initializing services: {e}")
+    logger.warning("Bot will start but may not function properly until environment variables are set")
     # Initialize with dummy values to prevent import errors
     configuration = None
     handler = None
@@ -107,9 +134,9 @@ def create_notifications_table():
     try:
         # Check if table exists by trying to select from it
         supabase_client.table('notifications').select('*').limit(1).execute()
-        print("[DB] notifications table already exists")
+        logger.info("Notifications table already exists")
     except:
-        print("[DB] notifications table will be created manually in Supabase")
+        logger.warning("Notifications table will be created manually in Supabase")
         # Schema is defined in the SQL you provided
         pass
 
@@ -117,7 +144,7 @@ def send_notification(user_id, message):
     """Send notification message to user"""
     try:
         if not line_bot_api:
-            print(f"[NOTIFICATION] Cannot send - LINE Bot API not available")
+            logger.warning("Cannot send notification - LINE Bot API not available")
             return False
             
         # Send push message (no reply_token needed)
@@ -142,21 +169,32 @@ def keep_alive_ping():
         import requests
         service_url = "https://linebot-production-ready.onrender.com"
         response = requests.get(service_url, timeout=10)
-        print(f"[KEEP-ALIVE] ✅ Pinged service: {response.status_code}")
+        logger.info(f"Keep-alive ping successful: {response.status_code}")
+        return True
     except Exception as e:
-        print(f"[KEEP-ALIVE] ❌ Ping failed: {e}")
+        logger.warning(f"Keep-alive ping failed: {e}")
+        return False
 
 def check_and_send_notifications():
     """Check for pending notifications and send them + keep service alive"""
     try:
         # Keep service alive (prevent Render sleep)
-        keep_alive_ping()
+        ping_success = keep_alive_ping()
         
         thai_tz = pytz.timezone('Asia/Bangkok')
         now = datetime.now(thai_tz)
         
-        # Get events that need notification (within next 1 hour)
-        events_response = supabase_client.table('events').select('*').gte('event_date', now.date()).execute()
+        logger.info(f"[NOTIFICATION] 🔍 Starting check at {now.strftime('%Y-%m-%d %H:%M:%S')} (Keep-alive: {'✅' if ping_success else '❌'})")
+        
+        # Get events that need notification (today and tomorrow)
+        tomorrow = now.date() + timedelta(days=1)
+        events_response = supabase_client.table('events').select('*').gte('event_date', now.date()).lte('event_date', tomorrow).execute()
+        
+        if not events_response.data:
+            logger.info("[NOTIFICATION] 📝 No upcoming events found")
+            return
+            
+        notifications_sent = 0
         
         for event in events_response.data:
             event_date_str = event.get('event_date')
@@ -172,10 +210,10 @@ def check_and_send_notifications():
                 # Check if we should send notification (3 hours before 9 AM = 6 AM)
                 notification_time = event_datetime - timedelta(hours=3)
                 
-                # Send notification if current time is within 10 minutes of notification time
+                # Send notification if current time is within 30 minutes of notification time (wider window)
                 time_diff = abs((now - notification_time).total_seconds())
                 
-                if time_diff <= 600:  # Within 10 minutes
+                if time_diff <= 1800:  # Within 30 minutes (improved from 10 minutes)
                     # Check if notification already sent
                     try:
                         check_sent = supabase_client.table('notifications').select('*').eq('event_id', event['id']).eq('sent', True).execute()
@@ -200,18 +238,23 @@ def check_and_send_notifications():
                                             'message': message,
                                             'sent': True
                                         }).execute()
-                                        print(f"[NOTIFICATION] ✅ Logged notification for event {event['id']}")
+                                        logger.info(f"[NOTIFICATION] ✅ Sent notification for event: {event_title}")
+                                        notifications_sent += 1
                                     except Exception as log_error:
-                                        print(f"[NOTIFICATION] ⚠️ Failed to log notification: {log_error}")
+                                        logger.warning(f"[NOTIFICATION] ⚠️ Failed to log notification: {log_error}")
+                        else:
+                            logger.info(f"[NOTIFICATION] 📋 Already sent for event: {event.get('event_title', 'Unknown')}")
                     except Exception as db_error:
-                        print(f"[NOTIFICATION] ⚠️ Database check failed: {db_error}")
+                        logger.warning(f"[NOTIFICATION] ⚠️ Database check failed: {db_error}")
                 
             except Exception as e:
-                print(f"[NOTIFICATION] Error processing event {event.get('id')}: {e}")
+                logger.error(f"[NOTIFICATION] Error processing event {event.get('id')}: {e}")
                 continue
                 
+        logger.info(f"[NOTIFICATION] ✅ Check completed - {notifications_sent} notifications sent, {len(events_response.data)} events checked")
+        
     except Exception as e:
-        print(f"[NOTIFICATION] ❌ Check failed: {e}")
+        logger.error(f"[NOTIFICATION] ❌ Check failed: {e}")
 
 # Initialize notification scheduler (only if APScheduler available)
 scheduler = None
@@ -229,16 +272,16 @@ def start_notification_system():
     """Start the notification scheduler"""
     try:
         if not SCHEDULER_AVAILABLE:
-            print("[NOTIFICATION] ⚠️ APScheduler not available - background notifications disabled")
+            logger.warning("[NOTIFICATION] ⚠️ APScheduler not available - background notifications disabled")
             return
             
         create_notifications_table()
         if scheduler and not scheduler.running:
             scheduler.start()
-            print("[NOTIFICATION] 🔔 Scheduler started - notifications + keep-alive every 10 minutes")
+            logger.info("[NOTIFICATION] 🔔 Scheduler started - notifications + keep-alive every 10 minutes")
             atexit.register(lambda: scheduler.shutdown())
     except Exception as e:
-        print(f"[NOTIFICATION] ❌ Failed to start scheduler: {e}")
+        logger.error(f"[NOTIFICATION] ❌ Failed to start scheduler: {e}")
 
 app = Flask(__name__)
 
@@ -361,17 +404,17 @@ def track_user_subscription(user_id):
                 'user_id': user_id,
                 'subscribed_at': current_time.isoformat()
             }).execute()
-            print(f"[NEW SUBSCRIBER] ✅ User added to subscribers: {user_id} at {current_time.strftime('%Y-%m-%d %H:%M:%S')} Thai time")
+            logger.info(f"New subscriber added: {user_id} at {current_time.strftime('%Y-%m-%d %H:%M:%S')} Thai time")
         else:
             # มีแล้ว - แค่ log
             subscribed_at = existing.data[0]['subscribed_at']
-            print(f"[EXISTING SUBSCRIBER] 👤 User {user_id} already tracked since {subscribed_at}")
+            logger.debug(f"User {user_id} already tracked since {subscribed_at}")
             
     except Exception as e:
-        print(f"[ERROR] ❌ Subscription tracking failed for {user_id}: {e}")
+        logger.error(f"Subscription tracking failed for {user_id}: {e}")
         # พยายามสร้างตารางถ้ายังไม่มี
         try:
-            print(f"[RETRY] 🔄 Attempting to create subscribers table...")
+            logger.info("Attempting to create subscribers table...")
             # อาจจะต้องสร้างตาราง subscribers ถ้ายังไม่มี
         except:
             pass
@@ -380,10 +423,8 @@ def create_main_menu():
     """Create main menu quick reply"""
     return QuickReply(items=[
         QuickReplyItem(action=MessageAction(label="เพิ่มกิจกรรม", text="เพิ่มกิจกรรม")),
-        QuickReplyItem(action=MessageAction(label="เพิ่มเบอร์", text="เพิ่มเบอร์")),
         QuickReplyItem(action=MessageAction(label="เพิ่มโน๊ต", text="เพิ่มโน๊ต")),
         QuickReplyItem(action=MessageAction(label="ค้นหากิจกรรม", text="ค้นหากิจกรรม")),
-        QuickReplyItem(action=MessageAction(label="ค้นหาเบอร์", text="ค้นหาเบอร์")),
         QuickReplyItem(action=MessageAction(label="ค้นหาโน๊ต", text="ค้นหาโน๊ต")),
         QuickReplyItem(action=MessageAction(label="ค้นหาตามวันที่", text="ค้นหาตามวันที่")),
         QuickReplyItem(action=MessageAction(label="ดูกิจกรรมทั้งหมด", text="ดูกิจกรรมทั้งหมด"))
@@ -456,7 +497,7 @@ def create_note_flex_message(note):
         content = note.get('phone_number', 'ไม่มีเนื้อหา')  # Using phone_number field for content
         
         # Limit content display
-        content_preview = content[:200] + ("..." if len(content) > 200 else "")
+        content_preview = content[:Config.LONG_CONTENT_PREVIEW] + ("..." if len(content) > Config.LONG_CONTENT_PREVIEW else "")
         
         bubble = {
             "type": "bubble",
@@ -564,7 +605,7 @@ def create_note_flex_message(note):
 def create_notes_carousel_flex(notes, page=1, search_query=""):
     """🎨 Create notes carousel Flex Message with pagination"""
     try:
-        notes_per_page = 10  # Show 10 notes per page
+        notes_per_page = Config.NOTES_PER_PAGE
         total_notes = len(notes)
         total_pages = (total_notes + notes_per_page - 1) // notes_per_page
         
@@ -654,7 +695,7 @@ def create_notes_carousel_flex(notes, page=1, search_query=""):
             content = note.get('phone_number', 'ไม่มีเนื้อหา')
             
             # Short preview for carousel
-            content_preview = content[:80] + ("..." if len(content) > 80 else "")
+            content_preview = content[:Config.SHORT_CONTENT_PREVIEW] + ("..." if len(content) > Config.SHORT_CONTENT_PREVIEW else "")
             
             bubble = {
                 "type": "bubble",
@@ -723,7 +764,7 @@ def create_beautiful_flex_message_working(events, user_id=None, page=1, search_q
     bubbles = []
     
     # Pagination settings
-    events_per_page = 10
+    events_per_page = Config.EVENTS_PER_PAGE
     total_events = len(events)
     total_pages = (total_events + events_per_page - 1) // events_per_page
     
@@ -1015,10 +1056,8 @@ def hello():
 
 ✅ **Features (100% Working):**
 • เพิ่มกิจกรรม ✅
-• เพิ่มเบอร์โทร ✅
 • เพิ่มโน๊ต ✅
 • ค้นหากิจกรรม ✅
-• ค้นหาเบอร์โทร ✅
 • ค้นหาโน๊ต ✅
 • ค้นหาตามวันที่ ✅
 • ดูกิจกรรมทั้งหมด ✅
@@ -1056,6 +1095,28 @@ def health_check():
     }
     
     return health_status, 200
+
+@app.route("/test-notifications", methods=['GET'])
+def test_notifications():
+    """Manual test endpoint for notification system"""
+    try:
+        logger.info("[TEST] Manual notification check triggered")
+        check_and_send_notifications()
+        
+        return {
+            'status': 'success',
+            'message': 'Notification check completed manually',
+            'scheduler_running': scheduler.running if scheduler else False,
+            'scheduler_available': SCHEDULER_AVAILABLE
+        }, 200
+    except Exception as e:
+        logger.error(f"[TEST] Manual notification test failed: {e}")
+        return {
+            'status': 'error',
+            'message': str(e),
+            'scheduler_running': scheduler.running if scheduler else False,
+            'scheduler_available': SCHEDULER_AVAILABLE
+        }, 500
 
 @app.route("/webhook", methods=['POST'])
 def callback():
@@ -1137,13 +1198,13 @@ def handle_message(event):
         if text == "สวัสดี" or text.lower() == "hello":
             user_states.pop(user_id, None)
             safe_reply(reply_token, [TextMessage(
-                text="🎯 **24h Assistant Bot** 🎯\n\n✨ **8 ฟีเจอร์หลัก:**\n✳️ เพิ่มกิจกรรม\n✳️ เพิ่มเบอร์โทร\n✳️ เพิ่มโน๊ต\n✳️ ค้นหากิจกรรม\n✳️ ค้นหาเบอร์โทร\n✳️ ค้นหาโน๊ต\n✳️ ค้นหาตามวันที่\n✳️ ดูกิจกรรมทั้งหมด\n\n🔔 **+ แจ้งเตือนอัตโนมัติ**\n⚡ **กดปุ่มเมนูด้านล่าง!**",
+                text="🎯 **24h Assistant Bot** 🎯\n\n✨ **6 ฟีเจอร์หลัก:**\n✳️ เพิ่มกิจกรรม\n✳️ เพิ่มโน๊ต\n✳️ ค้นหากิจกรรม\n✳️ ค้นหาโน๊ต\n✳️ ค้นหาตามวันที่\n✳️ ดูกิจกรรมทั้งหมด\n\n🔔 **+ แจ้งเตือนอัตโนมัติ**\n⚡ **กดปุ่มเมนูด้านล่าง!**",
                 quick_reply=create_main_menu()
             )])
             return
 
         # Reset state if user types any main menu command while in a pending state
-        main_menu_commands = ["เพิ่มกิจกรรม", "เพิ่มเบอร์", "เพิ่มโน๊ต", "ค้นหากิจกรรม", "ค้นหาเบอร์", "ค้นหาโน๊ต", "ค้นหาตามวันที่", "ดูกิจกรรมทั้งหมด"]
+        main_menu_commands = ["เพิ่มกิจกรรม", "เพิ่มโน๊ต", "ค้นหากิจกรรม", "ค้นหาโน๊ต", "ค้นหาตามวันที่", "ดูกิจกรรมทั้งหมด"]
         if text in main_menu_commands and user_id in user_states:
             user_states.pop(user_id, None)  # Clear any pending state
 
@@ -1153,11 +1214,6 @@ def handle_message(event):
             safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มกิจกรรม**\n\nพิมพ์ชื่อกิจกรรม:")])
             return
 
-        if text == "เพิ่มเบอร์":
-            user_states[user_id] = {"step": "add_contact_name"}
-            safe_reply(reply_token, [TextMessage(text="📞 **เพิ่มเบอร์โทร**\n\nพิมพ์ชื่อ:")])
-            return
-            
         if text == "เพิ่มโน๊ต":
             user_states[user_id] = {"step": "add_note_name"}
             safe_reply(reply_token, [TextMessage(text="📝 **เพิ่มโน๊ต**\n\nพิมพ์ชื่อโน๊ต:")])
@@ -1171,14 +1227,6 @@ def handle_message(event):
             )])
             return
 
-        if text == "ค้นหาเบอร์":
-            user_states[user_id] = {"step": "search_contacts"}
-            safe_reply(reply_token, [TextMessage(
-                text="📞 **ค้นหาเบอร์**\n\n💡 **พิมพ์ 2-3 คำ:**\n• ค้นหาจากชื่อ\n• ค้นหาจากเบอร์โทร\n\n📝 **ตัวอย่าง:** ปัญญา บุญยัง, 085, พ.ต.ท.",
-                quick_reply=create_main_menu()
-            )])
-            return
-            
         if text == "ค้นหาโน๊ต":
             user_states[user_id] = {"step": "search_notes"}
             safe_reply(reply_token, [TextMessage(
@@ -1438,29 +1486,6 @@ def handle_message(event):
                 return
 
             # Add contact flow
-            elif state["step"] == "add_contact_name":
-                state["name"] = text
-                state["step"] = "add_contact_phone"
-                safe_reply(reply_token, [TextMessage(text="📱 พิมพ์เบอร์โทร:")])
-                return
-                
-            elif state["step"] == "add_contact_phone":
-                try:
-                    supabase_client.table('contacts').insert({
-                        'name': state["name"],
-                        'phone_number': text.strip(),
-                        'created_by': user_id
-                    }).execute()
-                    
-                    user_states.pop(user_id, None)
-                    safe_reply(reply_token, [TextMessage(
-                        text=f"✅ **บันทึกเรียบร้อย!**\n\n👤 ชื่อ: {state['name']}\n📞 เบอร์: {text.strip()}",
-                        quick_reply=create_main_menu()
-                    )])
-                except Exception as e:
-                    print(f"[ERROR] Add contact error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาด กรุณาลองใหม่")])
-                return
                 
             # Add note flow
             elif state["step"] == "add_note_name":
@@ -1567,60 +1592,6 @@ def handle_message(event):
                     safe_reply(reply_token, [TextMessage(text="❌ รูปแบบวันที่ไม่ถูกต้อง ใช้: YYYY-MM-DD (เช่น 2025-08-21)")])
                 return
 
-            # Search contacts flow
-            elif state["step"] == "search_contacts":
-                try:
-                    search_query = text.strip()
-                    
-                    # Enhanced search: Split query into words for better partial matching
-                    search_words = search_query.split()
-                    if len(search_words) > 1:
-                        # Multi-word search: create OR conditions for each word
-                        word_conditions = []
-                        for word in search_words[:3]:  # Limit to 3 words max
-                            word = word.strip()
-                            if len(word) >= 2:  # Only search words with 2+ characters
-                                word_conditions.extend([
-                                    f'name.ilike.%{word}%',
-                                    f'phone_number.ilike.%{word}%'
-                                ])
-                        
-                        if word_conditions:
-                            # Join all conditions with OR
-                            search_condition = ','.join(word_conditions)
-                            contacts_response = supabase_client.table('contacts').select('*').or_(search_condition).order('created_at', desc=True).limit(10).execute()
-                        else:
-                            # Fallback to original search
-                            contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
-                    else:
-                        # Single word search
-                        contacts_response = supabase_client.table('contacts').select('*').or_(f'name.ilike.%{search_query}%,phone_number.ilike.%{search_query}%').order('created_at', desc=True).limit(10).execute()
-                    
-                    contacts = contacts_response.data if contacts_response.data else []
-                    user_states.pop(user_id, None)
-                    
-                    if not contacts:
-                        safe_reply(reply_token, [TextMessage(
-                            text=f"❌ **ไม่พบเบอร์โทร**\n\n🔍 คำค้นหา: \"{search_query}\"\n\n💡 **เคล็ดลับ:**\n• ลองค้นหาชื่อเฉพาะบางส่วน\n• ค้นหาด้วยตัวเลขเบอร์โทร\n• ตรวจสอบการสะกด",
-                            quick_reply=create_main_menu()
-                        )])
-                        return
-                    
-                    # Format results
-                    result_text = f"🔍 **ผลการค้นหาเบอร์** ({len(contacts)} รายการ)\n\n"
-                    for i, contact in enumerate(contacts, 1):
-                        created_by = contact.get('created_by', '')
-                        creator_info = f" (ID: {created_by[:8]}...)" if created_by else ""
-                        result_text += f"**{i}.** {contact['name']}\n📞 {contact['phone_number']}{creator_info}\n\n"
-                    
-                    safe_reply(reply_token, [TextMessage(
-                        text=result_text.strip(),
-                        quick_reply=create_main_menu()
-                    )])
-                except Exception as e:
-                    print(f"[ERROR] Search contacts error: {e}")
-                    safe_reply(reply_token, [TextMessage(text="❌ เกิดข้อผิดพลาดในการค้นหา")])
-                return
                 
             # Search notes flow
             elif state["step"] == "search_notes":
@@ -2145,9 +2116,9 @@ def application(environ, start_response):
 # Start notification system when app starts
 try:
     start_notification_system()
-    print("[INIT] 🔔 Notification system initialized")
+    logger.info("[INIT] 🔔 Notification system initialized")
 except Exception as e:
-    print(f"[INIT] ⚠️ Notification system failed to start: {e}")
+    logger.error(f"[INIT] ⚠️ Notification system failed to start: {e}")
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 10000))
